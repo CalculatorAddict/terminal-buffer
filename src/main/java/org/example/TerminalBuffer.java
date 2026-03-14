@@ -178,14 +178,14 @@ public class TerminalBuffer {
 
     public String getFullString() {
         StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < scrollback.size(); i++) {
-            if (builder.length() > 0) {
+        for (ScrollbackLine scrollbackLine : scrollback) {
+            if (!builder.isEmpty()) {
                 builder.append('\n');
             }
-            builder.append(scrollback.get(i).getString());
+            builder.append(scrollbackLine.getString());
         }
         for (MutableLine line : screen) {
-            if (builder.length() > 0) {
+            if (!builder.isEmpty()) {
                 builder.append('\n');
             }
             builder.append(line.getString());
@@ -247,7 +247,7 @@ public class TerminalBuffer {
 
     private void advanceCursor(int span) {
         cursorCol += span;
-        while (cursorCol >= width) {
+        while (cursorCol > width) {
             cursorCol -= width;
             if (cursorRow == height - 1) {
                 scrollUp();
@@ -258,14 +258,7 @@ public class TerminalBuffer {
     }
 
     private void normalizeCursorForSpan(int span) {
-        if (cursorCol + span > width) {
-            cursorCol = 0;
-            if (cursorRow == height - 1) {
-                scrollUp();
-            } else {
-                cursorRow++;
-            }
-        } else if (cursorCol >= width) {
+        if (cursorCol >= width || cursorCol + span > width) {
             cursorCol = 0;
             if (cursorRow == height - 1) {
                 scrollUp();

@@ -46,6 +46,94 @@ class TerminalBufferTest {
     }
 
     @Test
+    void writingExactlyToLineEndKeepsCursorAtWidthWithoutWrappingYet() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
+
+        buffer.writeText("abcd");
+
+        assertEquals("abcd\n", buffer.getScreenString());
+        assertEquals(4, buffer.getCursorCol());
+        assertEquals(0, buffer.getCursorRow());
+        assertEquals(0, buffer.getScrollback().size());
+    }
+
+    @Test
+    void writingOneCharPastLineEndWrapsToNextLine() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
+
+        buffer.writeText("abcd");
+        buffer.writeText("e");
+
+        assertEquals("abcd\ne", buffer.getScreenString());
+        assertEquals(1, buffer.getCursorCol());
+        assertEquals(1, buffer.getCursorRow());
+    }
+
+    @Test
+    void insertAtLineEndAppendsAndWrapsWithoutShiftingExistingCells() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
+
+        buffer.writeText("abcd");
+        buffer.insertText("XY");
+
+        assertEquals("abcd\nXY", buffer.getScreenString());
+        assertEquals(2, buffer.getCursorCol());
+        assertEquals(1, buffer.getCursorRow());
+    }
+
+    @Test
+    void insertAtColumnZeroShiftsContentRightAndWrapsOverflow() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
+
+        buffer.writeText("abcd");
+        buffer.setCursor(0, 0);
+        buffer.insertText("XY");
+
+        assertEquals("XYab\ncd", buffer.getScreenString());
+        assertEquals(2, buffer.getCursorCol());
+        assertEquals(0, buffer.getCursorRow());
+    }
+
+    @Test
+    void writingExactlyFillsScreenWithoutCreatingScrollback() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
+
+        buffer.writeText("abcdefgh");
+
+        assertEquals("abcd\nefgh", buffer.getScreenString());
+        assertEquals(4, buffer.getCursorCol());
+        assertEquals(1, buffer.getCursorRow());
+        assertEquals(0, buffer.getScrollback().size());
+    }
+
+    @Test
+    void writingOneCharPastFullScreenPushesFirstLineToScrollback() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
+
+        buffer.writeText("abcdefghi");
+
+        assertEquals(1, buffer.getScrollback().size());
+        assertEquals("abcd", buffer.getScrollbackLine(0).getString());
+        assertEquals("efgh\ni", buffer.getScreenString());
+        assertEquals(1, buffer.getCursorCol());
+        assertEquals(1, buffer.getCursorRow());
+    }
+
+    @Test
+    void wrappingOnLastScreenRowTriggersScrollUp() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
+
+        buffer.writeText("abcdefgh");
+        buffer.writeText("ij");
+
+        assertEquals(1, buffer.getScrollback().size());
+        assertEquals("abcd", buffer.getScrollbackLine(0).getString());
+        assertEquals("efgh\nij", buffer.getScreenString());
+        assertEquals(2, buffer.getCursorCol());
+        assertEquals(1, buffer.getCursorRow());
+    }
+
+    @Test
     void writingWhenScreenIsFullPushesTopLineToScrollback() {
         TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
 
