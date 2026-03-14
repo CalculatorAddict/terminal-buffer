@@ -128,4 +128,31 @@ class TerminalBufferTest {
         assertNull(buffer.getScrollbackLine(0));
         assertNotNull(buffer.getLine(0));
     }
+
+    @Test
+    void wideCharactersAdvanceCursorByTwoAndAreAddressableFromBothColumns() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
+
+        buffer.writeText("界a");
+
+        assertEquals(3, buffer.getCursorCol());
+        assertEquals(0, buffer.getCursorRow());
+        assertEquals(3, buffer.getLine(0).visualLength());
+        assertEquals("界a", buffer.getLine(0).getString());
+        assertEquals(2, buffer.getCell(0, 0).getColSpan());
+        assertEquals('界', buffer.getCell(0, 0).getChar());
+        assertEquals('界', buffer.getCell(1, 0).getChar());
+        assertEquals('a', buffer.getCell(2, 0).getChar());
+    }
+
+    @Test
+    void wideCharactersWrapBeforeWritingWhenOnlyOneColumnRemains() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
+
+        buffer.writeText("abc界");
+
+        assertEquals("abc\n界", buffer.getScreenString());
+        assertEquals(2, buffer.getCursorCol());
+        assertEquals(1, buffer.getCursorRow());
+    }
 }

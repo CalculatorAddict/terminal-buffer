@@ -60,7 +60,7 @@ public class TerminalBuffer {
             return;
         }
         for (int i = 0; i < text.length(); i++) {
-            writeCell(new Cell(text.charAt(i), currentAttributes, 1));
+            writeCell(createCell(text.charAt(i)));
         }
     }
 
@@ -69,8 +69,10 @@ public class TerminalBuffer {
             return;
         }
         for (int i = 0; i < text.length(); i++) {
-            insertCell(cursorRow, cursorCol, new Cell(text.charAt(i), currentAttributes, 1));
-            advanceCursor(1);
+            Cell cell = createCell(text.charAt(i));
+            normalizeCursorForSpan(cell.getColSpan());
+            insertCell(cursorRow, cursorCol, cell);
+            advanceCursor(cell.getColSpan());
         }
     }
 
@@ -180,7 +182,7 @@ public class TerminalBuffer {
     }
 
     private void writeCell(Cell cell) {
-        normalizeCursorForWrite();
+        normalizeCursorForSpan(cell.getColSpan());
         MutableLine line = screen.get(cursorRow);
         padLineToColumn(line, cursorCol);
         int cellIndex = line.visualColToCellIndex(cursorCol);
@@ -189,6 +191,7 @@ public class TerminalBuffer {
         } else {
             line.addCell(cell);
         }
+        overflowLine(cursorRow);
         advanceCursor(cell.getColSpan());
     }
 
@@ -197,16 +200,7 @@ public class TerminalBuffer {
         padLineToColumn(line, visualCol);
         int cellIndex = line.visualColToCellIndex(visualCol);
         line.addCell(cellIndex, cell);
-        if (line.visualLength() > width) {
-            Cell overflow = line.removeCell(line.cellLength() - 1);
-            int nextRow = row + 1;
-            if (nextRow >= height) {
-                scrollUp();
-                nextRow = height - 1;
-                row = row - 1;
-            }
-            insertCell(nextRow, 0, overflow);
-        }
+        overflowLine(row);
     }
 
     private void padLineToColumn(MutableLine line, int visualCol) {
@@ -227,9 +221,21 @@ public class TerminalBuffer {
         }
     }
 
-    private void normalizeCursorForWrite() {
-        if (cursorCol >= width) {
-            advanceCursor(0);
+    private void normalizeCursorForSpan(int span) {
+        if (cursorCol + span > width) {
+            cursorCol = 0;
+            if (cursorRow == height - 1) {
+                scrollUp();
+            } else {
+                cursorRow++;
+            }
+        } else if (cursorCol >= width) {
+            cursorCol = 0;
+            if (cursorRow == height - 1) {
+                scrollUp();
+            } else {
+                cursorRow++;
+            }
         }
     }
 
@@ -242,6 +248,44 @@ public class TerminalBuffer {
             screen.add(new MutableLine());
         }
         cursorRow = height - 1;
+    }
+
+    private void overflowLine(int row) {
+        MutableLine line = screen.get(row);
+        if (line.visualLength() <= width) {
+            return;
+        }
+
+        Cell overflow = line.removeCell(line.cellLength() - 1);
+        int nextRow = row + 1;
+        if (nextRow >= height) {
+            scrollUp();
+            nextRow = height - 1;
+        }
+        insertCell(nextRow, 0, overflow);
+    }
+
+    private Cell createCell(char c) {
+        return new Cell(c, currentAttributes, charWidth(c));
+    }
+
+    private int charWidth(char c) {
+        return isWide(c) ? 2 : 1;
+    }
+
+    private boolean isWide(char c) {
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(c);
+        return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
+                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
+                || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+                || block == Character.UnicodeBlock.HIRAGANA
+                || block == Character.UnicodeBlock.KATAKANA
+                || block == Character.UnicodeBlock.HANGUL_SYLLABLES
+                || block == Character.UnicodeBlock.HANGUL_JAMO
+                || block == Character.UnicodeBlock.HANGUL_COMPATIBILITY_JAMO
+                || block == Character.UnicodeBlock.CJK_SYMBOLS_AND_PUNCTUATION
+                || block == Character.UnicodeBlock.ENCLOSED_CJK_LETTERS_AND_MONTHS
+                || block == Character.UnicodeBlock.HALFWIDTH_AND_FULLWIDTH_FORMS;
     }
 
     private int clamp(int value, int min, int max) {
