@@ -155,4 +155,51 @@ class TerminalBufferTest {
         assertEquals(2, buffer.getCursorCol());
         assertEquals(1, buffer.getCursorRow());
     }
+
+    @Test
+    void shrinkingWidthRewrapsContentIntoMorePhysicalRows() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 3, 10);
+
+        buffer.writeText("abcdef");
+        buffer.resize(2, 3);
+
+        assertEquals(1, buffer.getScrollback().size());
+        assertEquals("ab", buffer.getScrollbackLine(0).getString());
+        assertEquals("cd\nef\n", buffer.getScreenString());
+        assertEquals("ab\ncd\nef\n", buffer.getFullString());
+    }
+
+    @Test
+    void growingWidthMergesPreviouslyWrappedRowsBackTogether() {
+        TerminalBuffer buffer = new TerminalBuffer(2, 4, 10);
+
+        buffer.writeText("abcdef");
+        buffer.resize(6, 4);
+
+        assertEquals(0, buffer.getScrollback().size());
+        assertEquals("abcdef\n\n\n", buffer.getScreenString());
+    }
+
+    @Test
+    void resizeReflowRespectsScrollbackMaximumSize() {
+        TerminalBuffer buffer = new TerminalBuffer(5, 2, 1);
+
+        buffer.writeText("abcdefghij");
+        buffer.resize(2, 2);
+
+        assertEquals(1, buffer.getScrollback().size());
+        assertEquals("ef", buffer.getScrollbackLine(0).getString());
+        assertEquals("gh\nij", buffer.getScreenString());
+    }
+
+    @Test
+    void resizeClampsCursorToNewBounds() {
+        TerminalBuffer buffer = new TerminalBuffer(5, 4, 10);
+
+        buffer.setCursor(4, 3);
+        buffer.resize(2, 2);
+
+        assertEquals(1, buffer.getCursorCol());
+        assertEquals(1, buffer.getCursorRow());
+    }
 }

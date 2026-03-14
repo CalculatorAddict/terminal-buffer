@@ -102,6 +102,42 @@ public class TerminalBuffer {
         scrollback.clear();
     }
 
+    public void resize(int newWidth, int newHeight) {
+        if (newWidth <= 0) {
+            throw new IllegalArgumentException("newWidth must be positive");
+        }
+        if (newHeight <= 0) {
+            throw new IllegalArgumentException("newHeight must be positive");
+        }
+
+        List<MutableLine> reflowedRows = new ArrayList<>();
+        int oldWidth = width;
+        for (MutableLine logicalLine : collectLogicalLines(oldWidth)) {
+            reflowedRows.addAll(rewrapLine(logicalLine, newWidth));
+        }
+
+        width = newWidth;
+        height = newHeight;
+
+        int screenStart = Math.max(0, reflowedRows.size() - newHeight);
+        int scrollbackStart = Math.max(0, screenStart - maxScrollbackSize);
+
+        scrollback.clear();
+        for (int i = scrollbackStart; i < screenStart; i++) {
+            scrollback.add(new ScrollbackLine(reflowedRows.get(i)));
+        }
+
+        screen.clear();
+        for (int i = screenStart; i < reflowedRows.size(); i++) {
+            screen.add(reflowedRows.get(i).copy());
+        }
+        while (screen.size() < newHeight) {
+            screen.add(new MutableLine());
+        }
+
+        setCursor(cursorCol, cursorRow);
+    }
+
     public Cell getCell(int col, int row) {
         return screen.get(clamp(row, 0, height - 1)).getCell(clamp(col, 0, width - 1));
     }
@@ -267,6 +303,66 @@ public class TerminalBuffer {
 
     private Cell createCell(char c) {
         return new Cell(c, currentAttributes, charWidth(c));
+    }
+
+    private List<MutableLine> rewrapLine(Line line, int targetWidth) {
+        List<MutableLine> rows = new ArrayList<>();
+        MutableLine currentRow = new MutableLine();
+        rows.add(currentRow);
+
+        int visualCol = 0;
+        while (visualCol < line.visualLength()) {
+            Cell cell = line.getCell(visualCol);
+            if (cell == null) {
+                break;
+            }
+            if (currentRow.visualLength() > 0
+                    && currentRow.visualLength() + cell.getColSpan() > targetWidth) {
+                currentRow = new MutableLine();
+                rows.add(currentRow);
+            }
+            currentRow.addCell(cell);
+            visualCol += cell.getColSpan();
+        }
+
+        return rows;
+    }
+
+    private List<MutableLine> collectLogicalLines(int oldWidth) {
+        List<MutableLine> logicalLines = new ArrayList<>();
+        MutableLine currentLine = new MutableLine();
+
+        for (ScrollbackLine line : scrollback) {
+            appendLineCells(currentLine, line);
+            if (line.visualLength() < oldWidth) {
+                logicalLines.add(currentLine);
+                currentLine = new MutableLine();
+            }
+        }
+        for (MutableLine line : screen) {
+            appendLineCells(currentLine, line);
+            if (line.visualLength() < oldWidth) {
+                logicalLines.add(currentLine);
+                currentLine = new MutableLine();
+            }
+        }
+
+        if (currentLine.cellLength() > 0 || logicalLines.isEmpty()) {
+            logicalLines.add(currentLine);
+        }
+        return logicalLines;
+    }
+
+    private void appendLineCells(MutableLine target, Line source) {
+        int visualCol = 0;
+        while (visualCol < source.visualLength()) {
+            Cell cell = source.getCell(visualCol);
+            if (cell == null) {
+                break;
+            }
+            target.addCell(cell);
+            visualCol += cell.getColSpan();
+        }
     }
 
     private int charWidth(char c) {
