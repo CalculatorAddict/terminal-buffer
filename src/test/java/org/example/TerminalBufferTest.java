@@ -281,13 +281,13 @@ class TerminalBufferTest {
     }
 
     @Test
-    void resizeClampsCursorToNewBounds() {
+    void resizeKeepsCursorVisualPositionWhenPossible() {
         TerminalBuffer buffer = new TerminalBuffer(5, 4, 10);
 
         buffer.setCursor(4, 3);
         buffer.resize(2, 2);
 
-        assertEquals(1, buffer.getCursorCol());
+        assertEquals(0, buffer.getCursorCol());
         assertEquals(1, buffer.getCursorRow());
     }
 }

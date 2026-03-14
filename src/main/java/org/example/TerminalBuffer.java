@@ -110,6 +110,7 @@ public class TerminalBuffer {
             throw new IllegalArgumentException("newHeight must be positive");
         }
 
+        int targetVisualPosition = computeCursorVisualPosition();
         List<MutableLine> reflowedRows = new ArrayList<>();
         int oldWidth = width;
         for (MutableLine logicalLine : collectLogicalLines(oldWidth)) {
@@ -135,7 +136,7 @@ public class TerminalBuffer {
             screen.add(new MutableLine());
         }
 
-        setCursor(cursorCol, cursorRow);
+        setCursorFromVisualPosition(targetVisualPosition);
     }
 
     public Cell getCell(int col, int row) {
@@ -379,5 +380,26 @@ public class TerminalBuffer {
 
     private int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private int computeCursorVisualPosition() {
+        return scrollback.size() + cursorRow;
+    }
+
+    private void setCursorFromVisualPosition(int targetVisualPosition) {
+        int totalRows = scrollback.size() + screen.size();
+        if (totalRows <= 0) {
+            cursorRow = 0;
+            cursorCol = 0;
+            return;
+        }
+
+        int clampedVisualPosition = clamp(targetVisualPosition, 0, totalRows - 1);
+        int firstScreenVisualPosition = scrollback.size();
+        int targetScreenRow = clampedVisualPosition - firstScreenVisualPosition;
+        cursorRow = clamp(targetScreenRow, 0, height - 1);
+
+        Line line = screen.get(cursorRow);
+        cursorCol = clamp(cursorCol, 0, Math.min(width, line.visualLength()));
     }
 }

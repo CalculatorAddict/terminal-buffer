@@ -38,7 +38,9 @@ Delete-line and delete-character operations were deliberately omitted — they w
 
 ### Resize
 
-Resize performs a full reflow. All content (scrollback + screen) is collected as logical lines, re-wrapped at the new width, then redistributed — oldest lines fill scrollback up to `maxScrollbackSize`, most recent `height` physical rows fill the new screen. The cursor is clamped to the new bounds.
+Resize performs a full reflow. All content (scrollback + screen) is collected as logical lines, re-wrapped at the new width, then redistributed — oldest lines fill scrollback up to `maxScrollbackSize`, most recent `height` physical rows fill the new screen.
+
+Cursor placement after resize uses visual-position semantics: before reflow, the buffer records the cursor's physical screen row and column; after reflow, it places the cursor on the new screen row corresponding to that same visual row position within the full scrollback+screen stack, preserving the original column when possible and otherwise clamping to the nearest valid row/column in the rebuilt screen.
 
 ## Operations
 
@@ -68,7 +70,7 @@ Runs a small demo that writes text including wide characters, triggers scrollbac
 ./gradlew test
 ```
 
-Tests cover cursor clamping, wrap behaviour, scrollback push and trimming, wide characters, resize reflow, and edge cases throughout.
+Tests cover cursor clamping, wrap behaviour, scrollback push and trimming, wide characters, resize reflow, visual-position cursor preservation across resize, and edge cases throughout.
 
 ## AI Usage
 
