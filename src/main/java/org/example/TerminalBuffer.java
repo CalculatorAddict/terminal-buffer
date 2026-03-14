@@ -100,6 +100,61 @@ public class TerminalBuffer {
         scrollback.clear();
     }
 
+    public Cell getCell(int col, int row) {
+        return screen.get(clamp(row, 0, height - 1)).getCell(clamp(col, 0, width - 1));
+    }
+
+    public Cell getScrollbackCell(int col, int scrollbackRow) {
+        if (scrollback.isEmpty()) {
+            return null;
+        }
+        return scrollback.get(clamp(scrollbackRow, 0, scrollback.size() - 1)).getCell(Math.max(0, col));
+    }
+
+    public CellAttributes getAttributes(int col, int row) {
+        Cell cell = getCell(col, row);
+        return cell == null ? CellAttributes.DEFAULT : cell.getAttributes();
+    }
+
+    public Line getLine(int row) {
+        return screen.get(clamp(row, 0, height - 1));
+    }
+
+    public ScrollbackLine getScrollbackLine(int scrollbackRow) {
+        if (scrollback.isEmpty()) {
+            return null;
+        }
+        return scrollback.get(clamp(scrollbackRow, 0, scrollback.size() - 1));
+    }
+
+    public String getScreenString() {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < screen.size(); i++) {
+            if (i > 0) {
+                builder.append('\n');
+            }
+            builder.append(screen.get(i).getString());
+        }
+        return builder.toString();
+    }
+
+    public String getFullString() {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < scrollback.size(); i++) {
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(scrollback.get(i).getString());
+        }
+        for (MutableLine line : screen) {
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(line.getString());
+        }
+        return builder.toString();
+    }
+
     public List<MutableLine> getScreen() {
         return screen;
     }
