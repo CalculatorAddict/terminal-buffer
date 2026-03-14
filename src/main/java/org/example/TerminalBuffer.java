@@ -83,6 +83,23 @@ public class TerminalBuffer {
         screen.set(clampedRow, line);
     }
 
+    public void insertEmptyLineAtBottom() {
+        scrollUp();
+    }
+
+    public void clearScreen() {
+        screen.clear();
+        for (int i = 0; i < height; i++) {
+            screen.add(new MutableLine());
+        }
+        setCursor(cursorCol, cursorRow);
+    }
+
+    public void clearAll() {
+        clearScreen();
+        scrollback.clear();
+    }
+
     public List<MutableLine> getScreen() {
         return screen;
     }
@@ -163,7 +180,10 @@ public class TerminalBuffer {
 
     private void scrollUp() {
         if (!screen.isEmpty()) {
-            screen.remove(0);
+            scrollback.add(new ScrollbackLine(screen.remove(0)));
+            if (scrollback.size() > maxScrollbackSize) {
+                scrollback.remove(0);
+            }
             screen.add(new MutableLine());
         }
         cursorRow = height - 1;
