@@ -55,6 +55,34 @@ public class TerminalBuffer {
         setCursor(cursorCol + dcol, cursorRow + drow);
     }
 
+    public void writeText(String text) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            writeCell(new Cell(text.charAt(i), currentAttributes, 1));
+        }
+    }
+
+    public void insertText(String text) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            insertCell(cursorRow, cursorCol, new Cell(text.charAt(i), currentAttributes, 1));
+            advanceCursor(1);
+        }
+    }
+
+    public void fillLine(int row, char c) {
+        int clampedRow = clamp(row, 0, height - 1);
+        MutableLine line = new MutableLine();
+        for (int col = 0; col < width; col++) {
+            line.addCell(new Cell(c, currentAttributes, 1));
+        }
+        screen.set(clampedRow, line);
+    }
+
     public List<MutableLine> getScreen() {
         return screen;
     }
@@ -77,6 +105,68 @@ public class TerminalBuffer {
 
     public int getMaxScrollbackSize() {
         return maxScrollbackSize;
+    }
+
+    private void writeCell(Cell cell) {
+        normalizeCursorForWrite();
+        MutableLine line = screen.get(cursorRow);
+        padLineToColumn(line, cursorCol);
+        int cellIndex = line.visualColToCellIndex(cursorCol);
+        if (cellIndex < line.cellLength()) {
+            line.setCell(cellIndex, cell);
+        } else {
+            line.addCell(cell);
+        }
+        advanceCursor(cell.getColSpan());
+    }
+
+    private void insertCell(int row, int visualCol, Cell cell) {
+        MutableLine line = screen.get(row);
+        padLineToColumn(line, visualCol);
+        int cellIndex = line.visualColToCellIndex(visualCol);
+        line.addCell(cellIndex, cell);
+        if (line.visualLength() > width) {
+            Cell overflow = line.removeCell(line.cellLength() - 1);
+            int nextRow = row + 1;
+            if (nextRow >= height) {
+                scrollUp();
+                nextRow = height - 1;
+                row = row - 1;
+            }
+            insertCell(nextRow, 0, overflow);
+        }
+    }
+
+    private void padLineToColumn(MutableLine line, int visualCol) {
+        while (line.visualLength() < visualCol) {
+            line.addCell(new Cell(' ', currentAttributes, 1));
+        }
+    }
+
+    private void advanceCursor(int span) {
+        cursorCol += span;
+        while (cursorCol >= width) {
+            cursorCol -= width;
+            if (cursorRow == height - 1) {
+                scrollUp();
+            } else {
+                cursorRow++;
+            }
+        }
+    }
+
+    private void normalizeCursorForWrite() {
+        if (cursorCol >= width) {
+            advanceCursor(0);
+        }
+    }
+
+    private void scrollUp() {
+        if (!screen.isEmpty()) {
+            screen.remove(0);
+            screen.add(new MutableLine());
+        }
+        cursorRow = height - 1;
     }
 
     private int clamp(int value, int min, int max) {
