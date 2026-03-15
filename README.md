@@ -41,6 +41,7 @@ The buffer also tracks:
 
 - current cursor position
 - current attributes used by normal writes and inserts
+- read-only scrollback views for inspection
 
 ## Requirements Coverage
 
@@ -59,6 +60,7 @@ The buffer also tracks:
 - get cursor: `getCursorCol()`, `getCursorRow()`
 - set cursor: `setCursor(int col, int row)`
 - move cursor: `moveCursor(int dcol, int drow)`
+- directional helpers: `moveCursorUp(int)`, `moveCursorDown(int)`, `moveCursorLeft(int)`, `moveCursorRight(int)`
 - cursor coordinates are clamped to screen bounds
 
 ### Editing
@@ -68,7 +70,10 @@ Cursor- and attribute-aware operations:
 - `writeText(String)` overwrites at the cursor and moves the cursor
 - `writeText(String, CellAttributes)` does the same with explicit per-call attributes
 - `insertText(String)` inserts at the cursor, shifts content right, and wraps overflow
-- `fillLine(int row, char c)` fills a screen row using the current attributes
+- `fillLine(char)` fills the current cursor row using the current attributes
+- `fillLine(int row, char c)` is a row-addressed convenience overload
+- `clearLine()` clears the current cursor row to empty cells
+- `clearLine(int row)` is a row-addressed convenience overload
 
 Operations that do not depend on cursor position:
 
@@ -80,6 +85,8 @@ Operations that do not depend on cursor position:
 
 - screen character access: `getCell(int col, int row)`
 - scrollback character access: `getScrollbackCell(int col, int scrollbackRow)`
+- screen character convenience access: `getChar(int col, int row)`
+- scrollback character convenience access: `getScrollbackChar(int col, int scrollbackRow)`
 - screen attributes: `getAttributes(int col, int row)`
 - scrollback attributes: `getScrollbackAttributes(int col, int scrollbackRow)`
 - screen line access: `getLine(int row)`
@@ -117,7 +124,7 @@ Trade-off:
 
 ### 2. Immutable Scrollback By Type
 
-Scrollback rows are copied into `ScrollbackLine`, which exposes only read operations. That makes scrollback unmodifiable by construction rather than by convention.
+Scrollback rows are copied into `ScrollbackLine`, which exposes only read operations. `getScrollback()` also returns a read-only view, so callers cannot mutate history through the public API.
 
 Trade-off:
 
@@ -197,6 +204,8 @@ The demo prints step-by-step snapshots showing:
 - scrollback rows
 - styled spans
 - wide-cell positions and code points
+
+The later snapshots also demonstrate the spec-aligned cursor helpers plus the explicit current-row `fillLine(char)` and `clearLine()` operations.
 
 In plain mode, wide characters are rendered as ASCII `[]` placeholders so the output remains readable even if the terminal cannot render the glyph itself.
 

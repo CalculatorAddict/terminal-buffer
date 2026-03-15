@@ -13,7 +13,8 @@ import org.example.buffer.model.TerminalColor;
 import org.example.buffer.render.AnsiRenderer;
 
 /**
- * Small manual demo for exercising wrapping, attributes, wide characters, and resize reflow.
+ * Small manual demo for exercising wrapping, attributes, cursor-relative line edits, wide characters,
+ * and resize reflow.
  */
 public class Demo {
     private static final AnsiRenderer ANSI_RENDERER = new AnsiRenderer();
@@ -75,6 +76,28 @@ public class Demo {
                 "Resize to 6 columns and reflow",
                 "resize(6, 4)",
                 "Text and stored attributes are rewrapped together so styled spans still line up.",
+                buffer,
+                ansi
+        );
+
+        buffer.moveCursorUp(1);
+        buffer.moveCursorLeft(4);
+        buffer.fillLine('=');
+        printSnapshot(
+                5,
+                "Fill the current cursor row",
+                "moveCursorUp(1); moveCursorLeft(4); fillLine('=')",
+                "This is the cursor-relative line fill operation described by the internship spec.",
+                buffer,
+                ansi
+        );
+
+        buffer.clearLine();
+        printSnapshot(
+                6,
+                "Clear the current cursor row",
+                "clearLine()",
+                "This is the explicit fill-with-empty operation. The cursor stays on the cleared row.",
                 buffer,
                 ansi
         );
