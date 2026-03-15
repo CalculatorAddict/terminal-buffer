@@ -1,5 +1,8 @@
 package org.example;
 
+/**
+ * Palette of terminal colors supported by {@link CellAttributes}.
+ */
 public enum TerminalColor {
     DEFAULT,
     BLACK,

@@ -3,12 +3,20 @@ package org.example;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Immutable physical row stored in scrollback.
+ */
 public final class ScrollbackLine implements Line {
     private final List<Cell> cells;
     private final int visualLength;
     private final String stringValue;
     private final boolean wrapped;
 
+    /**
+     * Freezes a mutable screen row into an immutable scrollback row.
+     *
+     * @param line screen row to copy
+     */
     public ScrollbackLine(MutableLine line) {
         this.cells = List.copyOf(new ArrayList<>(line.getCells()));
         this.visualLength = line.visualLength();
@@ -17,6 +25,9 @@ public final class ScrollbackLine implements Line {
     }
 
     @Override
+    /**
+     * {@inheritDoc}
+     */
     public Cell getCell(int visualCol) {
         if (visualCol < 0) {
             return null;
@@ -33,25 +44,42 @@ public final class ScrollbackLine implements Line {
     }
 
     @Override
+    /**
+     * {@inheritDoc}
+     */
     public int cellLength() {
         return cells.size();
     }
 
     @Override
+    /**
+     * {@inheritDoc}
+     */
     public int visualLength() {
         return visualLength;
     }
 
     @Override
+    /**
+     * {@inheritDoc}
+     */
     public String getString() {
         return stringValue;
     }
 
     @Override
+    /**
+     * {@inheritDoc}
+     */
     public boolean isWrapped() {
         return wrapped;
     }
 
+    /**
+     * Returns the immutable cell list for this row.
+     *
+     * @return immutable cells
+     */
     public List<Cell> getCells() {
         return cells;
     }
