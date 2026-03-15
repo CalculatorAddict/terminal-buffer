@@ -261,6 +261,9 @@ public class TerminalBuffer {
         padLineToColumn(line, visualCol);
         int cellIndex = line.visualColToCellIndex(visualCol);
         line.addCell(cellIndex, cell);
+        if (line.visualLength() > width) {
+            markWrapped(line);
+        }
         overflowLine(row);
     }
 
@@ -284,7 +287,7 @@ public class TerminalBuffer {
 
     private void normalizeCursorForSpan(int span) {
         if (cursorCol >= width || cursorCol + span > width) {
-            screen.get(cursorRow).setWrapped(true);
+            markWrapped(screen.get(cursorRow));
             cursorCol = 0;
             if (cursorRow == height - 1) {
                 scrollUp();
@@ -311,7 +314,7 @@ public class TerminalBuffer {
         }
 
         Cell overflow = line.removeCell(line.cellLength() - 1);
-        line.setWrapped(true);
+        markWrapped(line);
         int nextRow = row + 1;
         if (nextRow >= height) {
             scrollUp();
@@ -322,6 +325,12 @@ public class TerminalBuffer {
 
     private Cell createCell(char c) {
         return new Cell(c, currentAttributes, charWidth(c));
+    }
+
+    private void markWrapped(MutableLine line) {
+        if (!line.isWrapped()) {
+            line.setWrapped(true);
+        }
     }
 
     private boolean handleControlCharacter(char c) {

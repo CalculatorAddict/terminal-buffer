@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TerminalBufferTest {
 
@@ -41,6 +42,7 @@ class TerminalBufferTest {
         buffer.insertText("XY");
 
         assertEquals("aXYb\ncd", buffer.getScreenString());
+        assertTrue(buffer.getLine(0).isWrapped());
         assertEquals(3, buffer.getCursorCol());
         assertEquals(0, buffer.getCursorRow());
     }
