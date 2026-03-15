@@ -39,6 +39,26 @@ class TerminalBufferTest {
     }
 
     @Test
+    void writeTextOverloadUsesProvidedAttributesWithoutChangingCurrentAttributes() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
+        CellAttributes styled = new CellAttributes(
+                TerminalColor.RED,
+                TerminalColor.BLUE,
+                true,
+                false,
+                true
+        );
+
+        buffer.writeText("ab", styled);
+        buffer.writeText("c");
+
+        assertEquals(styled, buffer.getAttributes(0, 0));
+        assertEquals(styled, buffer.getAttributes(1, 0));
+        assertEquals(CellAttributes.DEFAULT, buffer.getAttributes(2, 0));
+        assertEquals(CellAttributes.DEFAULT, buffer.getCurrentAttributes());
+    }
+
+    @Test
     void insertTextWrapsOverflowIntoNextRows() {
         TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
 

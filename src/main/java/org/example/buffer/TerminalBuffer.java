@@ -62,6 +62,10 @@ public class TerminalBuffer {
         this.currentAttributes = CellAttributes.DEFAULT;
     }
 
+    /**
+     * Sets the current attributes used by {@link #writeText(String)}, {@link #insertText(String)}, and
+     * {@link #fillLine(int, char)}.
+     */
     public void setAttributes(CellAttributes attributes) {
         this.currentAttributes = attributes == null ? CellAttributes.DEFAULT : attributes;
     }
@@ -95,7 +99,19 @@ public class TerminalBuffer {
      * when already on the last visible row. Control characters update cursor state but do not create cells.</p>
      */
     public void writeText(String text) {
-        textWriter.writeText(text, currentAttributes);
+        writeText(text, currentAttributes);
+    }
+
+    /**
+     * Writes text at the current cursor using the provided attributes for this call only.
+     *
+     * <p>{@code '\r'} resets the cursor column to {@code 0}. {@code '\n'} moves to the next physical row and scrolls
+     * when already on the last visible row. Control characters update cursor state but do not create cells. Passing
+     * {@code null} uses {@link CellAttributes#DEFAULT}. This overload does not modify the current attributes stored by
+     * {@link #setAttributes(CellAttributes)}.</p>
+     */
+    public void writeText(String text, CellAttributes attributes) {
+        textWriter.writeText(text, attributes == null ? CellAttributes.DEFAULT : attributes);
     }
 
     /**
