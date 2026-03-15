@@ -1,6 +1,7 @@
 package org.example.buffer;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.example.buffer.cursor.CursorState;
@@ -64,7 +65,7 @@ public class TerminalBuffer {
 
     /**
      * Sets the current attributes used by {@link #writeText(String)}, {@link #insertText(String)}, and
-     * {@link #fillLine(int, char)}.
+     * {@link #fillLine(char)}.
      */
     public void setAttributes(CellAttributes attributes) {
         this.currentAttributes = attributes == null ? CellAttributes.DEFAULT : attributes;
@@ -90,6 +91,22 @@ public class TerminalBuffer {
 
     public void moveCursor(int dcol, int drow) {
         cursorState.moveCursor(dcol, drow);
+    }
+
+    public void moveCursorUp(int cells) {
+        moveCursor(0, -requireNonNegative(cells));
+    }
+
+    public void moveCursorDown(int cells) {
+        moveCursor(0, requireNonNegative(cells));
+    }
+
+    public void moveCursorLeft(int cells) {
+        moveCursor(-requireNonNegative(cells), 0);
+    }
+
+    public void moveCursorRight(int cells) {
+        moveCursor(requireNonNegative(cells), 0);
     }
 
     /**
@@ -124,6 +141,10 @@ public class TerminalBuffer {
         textWriter.insertText(text, currentAttributes);
     }
 
+    public void fillLine(char c) {
+        fillLine(cursorState.getCursorRow(), c);
+    }
+
     public void fillLine(int row, char c) {
         int clampedRow = cursorState.clampRow(row);
         MutableLine line = new MutableLine();
@@ -132,6 +153,14 @@ public class TerminalBuffer {
         }
         line.setWrapped(false);
         screen.set(clampedRow, line);
+    }
+
+    public void clearLine() {
+        clearLine(cursorState.getCursorRow());
+    }
+
+    public void clearLine(int row) {
+        screen.set(cursorState.clampRow(row), new MutableLine());
     }
 
     public void insertEmptyLineAtBottom() {
@@ -201,6 +230,16 @@ public class TerminalBuffer {
         return scrollback.get(scrollbackRow).getCell(col);
     }
 
+    public Character getChar(int col, int row) {
+        Cell cell = getCell(col, row);
+        return cell == null ? null : cell.getChar();
+    }
+
+    public Character getScrollbackChar(int col, int scrollbackRow) {
+        Cell cell = getScrollbackCell(col, scrollbackRow);
+        return cell == null ? null : cell.getChar();
+    }
+
     public CellAttributes getAttributes(int col, int row) {
         Cell cell = getCell(col, row);
         return cell == null ? CellAttributes.DEFAULT : cell.getAttributes();
@@ -258,7 +297,7 @@ public class TerminalBuffer {
     }
 
     public List<ScrollbackLine> getScrollback() {
-        return scrollback;
+        return Collections.unmodifiableList(scrollback);
     }
 
     public CellAttributes getCurrentAttributes() {
@@ -275,5 +314,12 @@ public class TerminalBuffer {
 
     public int getMaxScrollbackSize() {
         return maxScrollbackSize;
+    }
+
+    private int requireNonNegative(int cells) {
+        if (cells < 0) {
+            throw new IllegalArgumentException("cells must be non-negative");
+        }
+        return cells;
     }
 }
