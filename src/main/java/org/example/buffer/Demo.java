@@ -6,6 +6,9 @@ import org.example.buffer.model.Line;
 import org.example.buffer.model.ScrollbackLine;
 import org.example.buffer.model.TerminalColor;
 
+/**
+ * Small manual demo for exercising wrapping, attributes, wide characters, and resize reflow.
+ */
 public class Demo {
     public static void main(String[] args) {
         TerminalBuffer buffer = new TerminalBuffer(10, 4, 20);

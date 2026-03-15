@@ -12,6 +12,8 @@ The buffer maintains a **screen** (the visible grid, `width × height` physical 
 
 The text editing operations handle carriage return and newline directly: `\r` moves the cursor to column `0` of the current row, `\n` moves to the next physical row or scrolls when already on the last row, and neither control character stores a visible cell.
 
+This is a deliberate simplification: the buffer treats `\n` as "line feed plus carriage return". A full terminal emulator would usually distinguish those controls and let escape-sequence handling upstream decide how they interact.
+
 The code is split into focused packages: `org.example.buffer` contains the public `TerminalBuffer` facade, `org.example.buffer.model` contains the line/cell data model, and `org.example.buffer.reflow` contains the resize/reflow logic.
 
 ## Design Decisions

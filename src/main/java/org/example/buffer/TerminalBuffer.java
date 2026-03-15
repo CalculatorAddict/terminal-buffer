@@ -388,7 +388,9 @@ public class TerminalBuffer {
             return true;
         }
         if (c == '\n') {
-            // Newline is a row transition, not a stored glyph, so it resets the column before moving vertically.
+            // This buffer treats '\n' as "move to next row and reset column".
+            // A full terminal emulator would usually distinguish line feed from carriage return
+            // and let escape-sequence handling decide how those controls interact.
             cursorCol = 0;
             if (cursorRow == height - 1) {
                 scrollUp();
