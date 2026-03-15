@@ -10,6 +10,8 @@ When a shell sends output, a terminal emulator updates a buffer, and the UI rend
 
 The buffer maintains a **screen** (the visible grid, `width × height` physical rows) and a **scrollback** (lines that have scrolled off the top, preserved as history).
 
+The text editing operations handle carriage return and newline directly: `\r` moves the cursor to column `0` of the current row, `\n` moves to the next physical row or scrolls when already on the last row, and neither control character stores a visible cell.
+
 ## Design Decisions
 
 ### Logical vs Physical Lines
@@ -71,6 +73,10 @@ Runs a small demo that writes text including wide characters, triggers scrollbac
 ```
 
 Tests cover cursor clamping, wrap behaviour, scrollback push and trimming, wide characters, resize reflow, visual-position cursor preservation across resize, and edge cases throughout.
+
+## Future Improvements
+
+The current design uses a separate `ScrollbackLine` type to enforce immutability at the type level, matching the spec's requirement that scrollback is unmodifiable. A production implementation concerned with allocation pressure could instead use a single `Line` class with a `freeze()` method — trading compile-time safety for zero extra allocations on the scrollback hot path. Object pooling of `MutableLine` instances would further reduce GC pressure in high-throughput scenarios.
 
 ## AI Usage
 
