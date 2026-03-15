@@ -1,12 +1,17 @@
-package org.example;
+package org.example.buffer;
 
 import org.junit.jupiter.api.Test;
+import org.example.buffer.model.CellAttributes;
+import org.example.buffer.model.TerminalColor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Regression tests for the public {@link TerminalBuffer} facade.
+ */
 class TerminalBufferTest {
 
     @Test

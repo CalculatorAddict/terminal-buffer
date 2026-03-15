@@ -12,6 +12,8 @@ The buffer maintains a **screen** (the visible grid, `width × height` physical 
 
 The text editing operations handle carriage return and newline directly: `\r` moves the cursor to column `0` of the current row, `\n` moves to the next physical row or scrolls when already on the last row, and neither control character stores a visible cell.
 
+The code is split into focused packages: `org.example.buffer` contains the public `TerminalBuffer` facade, `org.example.buffer.model` contains the line/cell data model, and `org.example.buffer.reflow` contains the resize/reflow logic.
+
 ## Design Decisions
 
 ### Logical vs Physical Lines
@@ -40,7 +42,7 @@ Delete-line and delete-character operations were deliberately omitted — they w
 
 ### Resize
 
-Resize performs a full reflow. All content (scrollback + screen) is collected as logical lines, re-wrapped at the new width, then redistributed — oldest lines fill scrollback up to `maxScrollbackSize`, most recent `height` physical rows fill the new screen.
+Resize performs a full reflow. All content (scrollback + screen) is collected as logical lines, re-wrapped at the new width, then redistributed — oldest lines fill scrollback up to `maxScrollbackSize`, most recent `height` physical rows fill the new screen. The reflow implementation now lives in a dedicated `ReflowEngine`, which keeps resize-specific logic out of `TerminalBuffer` itself.
 
 Cursor placement after resize uses visual-position semantics: before reflow, the buffer records the cursor's physical screen row and column; after reflow, it places the cursor on the new screen row corresponding to that same visual row position within the full scrollback+screen stack, preserving the original column when possible and otherwise clamping to the nearest valid row/column in the rebuilt screen.
 

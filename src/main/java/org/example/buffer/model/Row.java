@@ -1,4 +1,4 @@
-package org.example;
+package org.example.buffer.model;
 
 public final class Row {
     private final Line line;

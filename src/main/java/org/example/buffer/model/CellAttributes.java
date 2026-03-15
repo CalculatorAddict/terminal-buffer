@@ -1,4 +1,4 @@
-package org.example;
+package org.example.buffer.model;
 
 /**
  * Styling attributes attached to a cell.

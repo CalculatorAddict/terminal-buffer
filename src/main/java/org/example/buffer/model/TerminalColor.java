@@ -1,4 +1,4 @@
-package org.example;
+package org.example.buffer.model;
 
 /**
  * Palette of terminal colors supported by {@link CellAttributes}.

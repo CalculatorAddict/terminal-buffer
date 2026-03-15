@@ -1,7 +1,14 @@
-package org.example;
+package org.example.buffer;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import org.example.buffer.model.Cell;
+import org.example.buffer.model.CellAttributes;
+import org.example.buffer.model.Line;
+import org.example.buffer.model.MutableLine;
+import org.example.buffer.model.ScrollbackLine;
+import org.example.buffer.reflow.ReflowEngine;
 
 /**
  * Terminal text buffer with a visible screen and append-only scrollback history.
@@ -20,16 +27,6 @@ import java.util.List;
  * screen row. Neither control character stores a cell in the buffer.</p>
  */
 public class TerminalBuffer {
-    private static final class CursorVisualPosition {
-        private final int logicalLineIndex;
-        private final int visualCol;
-
-        private CursorVisualPosition(int logicalLineIndex, int visualCol) {
-            this.logicalLineIndex = logicalLineIndex;
-            this.visualCol = visualCol;
-        }
-    }
-
     private final List<MutableLine> screen;
     private final List<ScrollbackLine> scrollback;
     private int cursorCol;
@@ -210,32 +207,25 @@ public class TerminalBuffer {
             throw new IllegalArgumentException("newHeight must be positive");
         }
 
-        CursorVisualPosition targetVisualPosition = computeCursorVisualPosition();
-        List<MutableLine> reflowedRows = new ArrayList<>();
-        for (MutableLine logicalLine : collectLogicalLines()) {
-            reflowedRows.addAll(rewrapLine(logicalLine, newWidth));
-        }
+        ReflowEngine.ReflowResult result = ReflowEngine.reflow(
+                screen,
+                scrollback,
+                width,
+                maxScrollbackSize,
+                cursorRow,
+                cursorCol,
+                newWidth,
+                newHeight
+        );
 
         width = newWidth;
         height = newHeight;
-
-        int screenStart = Math.max(0, reflowedRows.size() - newHeight);
-        int scrollbackStart = Math.max(0, screenStart - maxScrollbackSize);
-
         scrollback.clear();
-        for (int i = scrollbackStart; i < screenStart; i++) {
-            scrollback.add(new ScrollbackLine(reflowedRows.get(i)));
-        }
-
+        scrollback.addAll(result.scrollback());
         screen.clear();
-        for (int i = screenStart; i < reflowedRows.size(); i++) {
-            screen.add(reflowedRows.get(i).copy());
-        }
-        while (screen.size() < newHeight) {
-            screen.add(new MutableLine());
-        }
-
-        setCursorFromVisualPosition(targetVisualPosition);
+        screen.addAll(result.screen());
+        cursorRow = result.cursorRow();
+        cursorCol = result.cursorCol();
     }
 
     /**
@@ -509,68 +499,6 @@ public class TerminalBuffer {
         return false;
     }
 
-    private List<MutableLine> rewrapLine(Line line, int targetWidth) {
-        List<MutableLine> rows = new ArrayList<>();
-        MutableLine currentRow = new MutableLine();
-        rows.add(currentRow);
-
-        int visualCol = 0;
-        while (visualCol < line.visualLength()) {
-            Cell cell = line.getCell(visualCol);
-            if (cell == null) {
-                break;
-            }
-            if (currentRow.visualLength() > 0
-                    && currentRow.visualLength() + cell.getColSpan() > targetWidth) {
-                // The previous physical row now wraps forward; the next row is its continuation.
-                currentRow.setWrapped(true);
-                currentRow = new MutableLine();
-                rows.add(currentRow);
-            }
-            currentRow.addCell(cell);
-            visualCol += cell.getColSpan();
-        }
-
-        return rows;
-    }
-
-    private List<MutableLine> collectLogicalLines() {
-        List<MutableLine> logicalLines = new ArrayList<>();
-        MutableLine currentLine = null;
-
-        for (Line line : getPhysicalLines()) {
-            if (currentLine == null) {
-                currentLine = new MutableLine();
-            }
-            // Consecutive physical rows are rejoined until a row explicitly says the logical line ended here.
-            appendLineCells(currentLine, line);
-            if (!line.isWrapped()) {
-                logicalLines.add(currentLine);
-                currentLine = null;
-            }
-        }
-
-        if (currentLine != null) {
-            logicalLines.add(currentLine);
-        }
-        if (logicalLines.isEmpty()) {
-            logicalLines.add(new MutableLine());
-        }
-        return logicalLines;
-    }
-
-    private void appendLineCells(MutableLine target, Line source) {
-        int visualCol = 0;
-        while (visualCol < source.visualLength()) {
-            Cell cell = source.getCell(visualCol);
-            if (cell == null) {
-                break;
-            }
-            target.addCell(cell);
-            visualCol += cell.getColSpan();
-        }
-    }
-
     private int charWidth(char c) {
         return isWide(c) ? 2 : 1;
     }
@@ -594,86 +522,4 @@ public class TerminalBuffer {
         return Math.max(min, Math.min(max, value));
     }
 
-    private List<Line> getPhysicalLines() {
-        List<Line> lines = new ArrayList<>(scrollback.size() + screen.size());
-        lines.addAll(scrollback);
-        lines.addAll(screen);
-        return lines;
-    }
-
-    private CursorVisualPosition computeCursorVisualPosition() {
-        List<Line> physicalLines = getPhysicalLines();
-        if (physicalLines.isEmpty()) {
-            return new CursorVisualPosition(0, 0);
-        }
-
-        int targetPhysicalRow = scrollback.size() + cursorRow;
-        int logicalLineIndex = 0;
-        int logicalLineVisualBase = 0;
-        for (int physicalRow = 0; physicalRow < physicalLines.size(); physicalRow++) {
-            Line line = physicalLines.get(physicalRow);
-            if (physicalRow == targetPhysicalRow) {
-                // Store the cursor as logical-line index plus visual offset within that logical line.
-                return new CursorVisualPosition(logicalLineIndex, logicalLineVisualBase + cursorCol);
-            }
-            if (line.isWrapped()) {
-                logicalLineVisualBase += line.visualLength();
-            } else {
-                logicalLineIndex++;
-                logicalLineVisualBase = 0;
-            }
-        }
-        return new CursorVisualPosition(logicalLineIndex, cursorCol);
-    }
-
-    private void setCursorFromVisualPosition(CursorVisualPosition targetVisualPosition) {
-        List<Line> physicalLines = getPhysicalLines();
-        if (physicalLines.isEmpty()) {
-            cursorRow = 0;
-            cursorCol = 0;
-            return;
-        }
-
-        int totalLogicalLines = 0;
-        for (Line line : physicalLines) {
-            if (!line.isWrapped()) {
-                totalLogicalLines++;
-            }
-        }
-        if (totalLogicalLines == 0) {
-            totalLogicalLines = 1;
-        }
-        int clampedLogicalLineIndex = clamp(targetVisualPosition.logicalLineIndex, 0, totalLogicalLines - 1);
-
-        int logicalLineIndex = 0;
-        int logicalLineVisualBase = 0;
-        int resolvedPhysicalRow = 0;
-        int resolvedCol = 0;
-        for (int physicalRow = 0; physicalRow < physicalLines.size(); physicalRow++) {
-            Line line = physicalLines.get(physicalRow);
-            int rowStart = logicalLineVisualBase;
-            int rowEnd = rowStart + line.visualLength();
-
-            if (logicalLineIndex == clampedLogicalLineIndex) {
-                resolvedPhysicalRow = physicalRow;
-                // Clamp within the reconstructed row so a cursor beyond the new content lands on the nearest valid spot.
-                resolvedCol = clamp(targetVisualPosition.visualCol - rowStart, 0, Math.min(width, line.visualLength()));
-                if (targetVisualPosition.visualCol <= rowEnd || !line.isWrapped()) {
-                    break;
-                }
-            }
-
-            if (line.isWrapped()) {
-                logicalLineVisualBase = rowEnd;
-            } else {
-                logicalLineIndex++;
-                logicalLineVisualBase = 0;
-            }
-        }
-
-        int firstScreenRow = scrollback.size();
-        cursorRow = clamp(resolvedPhysicalRow - firstScreenRow, 0, height - 1);
-        Line line = screen.get(cursorRow);
-        cursorCol = clamp(resolvedCol, 0, Math.min(width, line.visualLength()));
-    }
 }

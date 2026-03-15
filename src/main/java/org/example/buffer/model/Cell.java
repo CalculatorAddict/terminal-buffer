@@ -1,4 +1,4 @@
-package org.example;
+package org.example.buffer.model;
 
 /**
  * Single rendered cell within the terminal buffer.

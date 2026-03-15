@@ -1,4 +1,4 @@
-package org.example;
+package org.example.buffer.model;
 
 /**
  * Read-only view of a logical or physical line of cells.
