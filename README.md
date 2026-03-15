@@ -1,89 +1,244 @@
 # TerminalBuffer
 
-A terminal text buffer implementation in Java — the core data structure used by terminal emulators to store and manipulate displayed text.
+This repository contains a Java implementation of a terminal text buffer built for a JetBrains internship task.
 
-This was built as part of a JetBrains internship application task.
+The goal of the task is to implement the core data structure a terminal emulator uses to store displayed text, cursor state, cell attributes, visible screen contents, and scrollback history.
 
-## Overview
+Repository: `https://github.com/CalculatorAddict/terminal-buffer`
 
-When a shell sends output, a terminal emulator updates a buffer, and the UI renders it. This implementation covers the buffer layer only — no escape sequence parsing or rendering.
+## Task Context
 
-The buffer maintains a **screen** (the visible grid, `width × height` physical rows) and a **scrollback** (lines that have scrolled off the top, preserved as history).
+The task asks for a terminal buffer with:
 
-The text editing operations handle carriage return and newline directly: `\r` moves the cursor to column `0` of the current row, `\n` moves to the next physical row or scrolls when already on the last row, and neither control character stores a visible cell.
+- configurable width, height, and scrollback size
+- per-cell character and styling data
+- cursor movement and clamping
+- overwrite and insert editing operations
+- editable visible screen plus immutable scrollback history
+- content and attribute accessors
+- comprehensive tests
 
-This is a deliberate simplification: the buffer treats `\n` as "line feed plus carriage return". A full terminal emulator would usually distinguish those controls and let escape-sequence handling upstream decide how they interact.
+Bonus points were available for wide-character support and resize handling. This implementation includes both.
 
-The code is split into focused packages: `org.example.buffer` contains the public `TerminalBuffer` facade and demo, `org.example.buffer.model` contains the line/cell data model, `org.example.buffer.reflow` contains the resize/reflow logic, `org.example.buffer.write` contains the write pipeline and cell construction logic, and `org.example.buffer.cursor` contains cursor state and clamping.
+## Solution Overview
 
-## Design Decisions
+The public entry point is [`TerminalBuffer`](src/main/java/org/example/buffer/TerminalBuffer.java).
 
-### Logical vs Physical Lines
+The buffer models two user-visible regions:
 
-The core abstraction is a `Line` — an unbounded logical line with no fixed width. Physical layout (how many screen rows a line occupies) is computed on demand via `physicalLineCount(screenWidth)`. This cleanly separates content from presentation, and makes resize/reflow straightforward.
+- **Screen**: the visible `width x height` area, stored as mutable rows
+- **Scrollback**: immutable rows that have scrolled off the top, capped by `maxScrollbackSize`
 
-### Immutability at the Type Level
+Each stored cell contains:
 
-The `Line` interface is read-only. `MutableLine` extends it with editing operations for screen content. `ScrollbackLine` implements it with final fields set at construction — immutability is enforced by the type system, not by convention. When a line scrolls off the screen it is copied into a `ScrollbackLine`, severing any shared reference.
+- a character
+- foreground color
+- background color
+- style flags: `bold`, `italic`, `underline`
+- a visual width (`colSpan`) so wide characters can occupy two terminal columns
+
+The buffer also tracks:
+
+- current cursor position
+- current attributes used by normal writes and inserts
+
+## Requirements Coverage
+
+### Setup
+
+- configurable initial width and height
+- configurable scrollback maximum size
+
+### Attributes
+
+- `setAttributes(CellAttributes)` updates the current foreground, background, and style flags for further edits
+- `writeText(String, CellAttributes)` is an extra convenience overload for one-off styled writes without mutating the current attribute state
 
 ### Cursor
 
-The cursor is physical and 0-indexed throughout. Valid column range is `[0, width]` inclusive — `col == width` represents a **pending wrap** state. No extra flag is needed; the next write checks `cursorCol == width` and wraps before writing. This matches standard terminal behaviour.
+- get cursor: `getCursorCol()`, `getCursorRow()`
+- set cursor: `setCursor(int col, int row)`
+- move cursor: `moveCursor(int dcol, int drow)`
+- cursor coordinates are clamped to screen bounds
 
-### Scrollback
+### Editing
 
-Scrollback is append-only. A physical row is pushed to scrollback the moment it would be displaced above row 0 of the screen — this happens via a private `scrollUp()` called whenever a new physical row is needed at the bottom. Scrollback is trimmed to `maxScrollbackSize` on every push, oldest entries removed first.
+Cursor- and attribute-aware operations:
 
-Delete-line and delete-character operations were deliberately omitted — they would violate the append-only invariant of scrollback and significantly complicate history management. A real terminal emulator would handle these via escape sequence processing upstream of the buffer.
+- `writeText(String)` overwrites at the cursor and moves the cursor
+- `writeText(String, CellAttributes)` does the same with explicit per-call attributes
+- `insertText(String)` inserts at the cursor, shifts content right, and wraps overflow
+- `fillLine(int row, char c)` fills a screen row using the current attributes
 
-### Wide Characters
+Operations that do not depend on cursor position:
 
-`Cell` carries a `colSpan` field (1 for normal, 2 for wide/double-width characters like CJK ideographs and emoji). `getCell(visualCol)` scans by summing colSpans, so accessing either visual column of a wide character returns the same `Cell`. When writing a wide character, if only one column remains on the current row, the buffer wraps before writing to avoid splitting it across rows.
+- `insertEmptyLineAtBottom()`
+- `clearScreen()`
+- `clearAll()`
 
-### Resize
+### Content Access
 
-Resize performs a full reflow. All content (scrollback + screen) is collected as logical lines, re-wrapped at the new width, then redistributed — oldest lines fill scrollback up to `maxScrollbackSize`, most recent `height` physical rows fill the new screen. The reflow implementation now lives in a dedicated `ReflowEngine`, which keeps resize-specific logic out of `TerminalBuffer` itself.
+- screen character access: `getCell(int col, int row)`
+- scrollback character access: `getScrollbackCell(int col, int scrollbackRow)`
+- screen attributes: `getAttributes(int col, int row)`
+- scrollback attributes: `getScrollbackAttributes(int col, int scrollbackRow)`
+- screen line access: `getLine(int row)`
+- scrollback line access: `getScrollbackLine(int scrollbackRow)`
+- visible screen as string: `getScreenString()`
+- scrollback + screen as string: `getFullString()`
 
-Cursor placement after resize uses visual-position semantics: before reflow, the buffer records the cursor's physical screen row and column; after reflow, it places the cursor on the new screen row corresponding to that same visual row position within the full scrollback+screen stack, preserving the original column when possible and otherwise clamping to the nearest valid row/column in the rebuilt screen.
+### Bonus Features Implemented
 
-## Operations
+- wide-character handling for common BMP CJK cases
+- screen resize with full content reflow and cursor remapping
 
-- **Cursor** — get/set/move with bounds clamping. Valid column range is `[0, width]` inclusive.
-- **Attributes** — set current foreground color, background color, and style flags (bold, italic, underline). Used by all subsequent editing operations.
-- **Editing** — `writeText`, `insertText`, `fillLine` — all use the current cursor position and current attributes.
-- **Screen** — `insertEmptyLineAtBottom`, `clearScreen`, `clearAll`.
-- **Content access** — `getCell`, `getAttributes`, `getScrollbackCell`, `getScrollbackAttributes`, `getLine`, `getScrollbackLine`, `getScreenString`, `getFullString`.
+### Technical Constraints
+
+- language: Java
+- build tool: Gradle
+- external libraries: none for production code, JUnit 5 for tests
+
+## Design Decisions And Trade-Offs
+
+### 1. Physical Rows First, Reconstructed Logical Lines On Demand
+
+The task talks about screen lines and scrollback lines. Internally, this implementation stores **physical rows** because that keeps ordinary terminal editing and scrolling simple.
+
+- screen storage is `List<MutableLine>`
+- scrollback storage is `List<ScrollbackLine>`
+- each row has a `wrapped` flag indicating whether the following physical row continues the same logical line
+
+Logical lines are reconstructed only when needed, mainly during resize. This keeps the hot path simple while still making correct reflow possible.
+
+Trade-off:
+
+- simpler normal writes and scrolling
+- more work during resize because logical lines must be rebuilt from wrapped physical rows
+
+### 2. Immutable Scrollback By Type
+
+Scrollback rows are copied into `ScrollbackLine`, which exposes only read operations. That makes scrollback unmodifiable by construction rather than by convention.
+
+Trade-off:
+
+- stronger safety and clearer API
+- extra allocation when a screen row scrolls into history
+
+### 3. Pending-Wrap Cursor State
+
+The valid cursor column range is `[0, width]`, not `[0, width - 1]`.
+
+`cursorCol == width` represents the normal terminal state after writing exactly to the right edge. The next printable write wraps before storing a new cell.
+
+Trade-off:
+
+- matches real terminal behavior more closely
+- requires callers and tests to treat `width` as a valid cursor column
+
+### 4. Simplified Control Character Semantics
+
+This buffer handles control characters directly in the write pipeline:
+
+- `\r` moves to column `0`
+- `\n` moves to the next physical row and resets the column to `0`
+
+So newline behaves like "line feed plus carriage return".
+
+Trade-off:
+
+- simple, predictable behavior for this task
+- not a full terminal-emulator control-sequence model
+
+### 5. Resize Strategy
+
+Resize performs a full reflow:
+
+1. collect scrollback and screen rows
+2. rebuild logical lines using `wrapped`
+3. re-wrap at the new width
+4. keep the newest rows on screen
+5. retain older rows in scrollback up to the configured cap
+
+Cursor preservation is based on visual position inside the reconstructed logical line, then clamped if the target column no longer exists after reflow.
+
+Trade-off:
+
+- preserves content and styling more naturally across width changes
+- more expensive than a naive crop-or-pad strategy
+
+### 6. Wide Characters
+
+Wide characters are represented with `colSpan == 2`. Accessing either covered visual column returns the same cell, and writing wraps first if only one column remains on the row.
+
+Trade-off:
+
+- good support for the task's bonus requirement
+- still limited to a `char`-based model rather than full grapheme-cluster handling
 
 ## Demo
+
+Run the structured plain-text demo:
 
 ```bash
 ./gradlew run
 ```
 
-Runs a small demo that writes text including wide characters, triggers scrollback, and resizes the buffer, printing the result at each stage.
+Run the ANSI-rendered demo:
 
-## Building
+```bash
+./gradlew run --args=--ansi
+```
+
+The demo prints step-by-step snapshots showing:
+
+- action performed
+- buffer size and cursor position
+- screen rows
+- scrollback rows
+- styled spans
+- wide-cell positions and code points
+
+In plain mode, wide characters are rendered as ASCII `[]` placeholders so the output remains readable even if the terminal cannot render the glyph itself.
+
+## Build And Test
+
+Build:
 
 ```bash
 ./gradlew build
 ```
 
-## Testing
+Run tests:
 
 ```bash
 ./gradlew test
 ```
 
-Tests cover cursor clamping, wrap behaviour, scrollback push and trimming, wide characters, resize reflow, visual-position cursor preservation across resize, and edge cases throughout.
+The test suite covers:
+
+- cursor clamping and movement
+- overwrite and insert behavior
+- screen-to-scrollback transitions
+- scrollback trimming
+- attribute persistence
+- wide-character behavior
+- resize and cursor remapping edge cases
 
 ## Future Improvements
 
-The current design uses a separate `ScrollbackLine` type to enforce immutability at the type level, matching the spec's requirement that scrollback is unmodifiable. A production implementation concerned with allocation pressure could instead use a single `Line` class with a `freeze()` method — trading compile-time safety for zero extra allocations on the scrollback hot path. Object pooling of `MutableLine` instances would further reduce GC pressure in high-throughput scenarios.
+If I had more time, the next improvements would be:
 
-## AI Usage
+- full escape-sequence handling upstream of the buffer
+- more complete Unicode width and grapheme-cluster support
+- delete-line and delete-character operations
+- tabs, alternate screen behavior, and richer terminal semantics
+- performance tuning to reduce copying on scroll and resize hot paths
 
-This project was developed with AI assistance as encouraged in the task requirements.
+## Repository Contents
 
-Architecture and design decisions were worked out collaboratively with Claude (claude.ai) — including the logical/physical line separation, the `Line`/`MutableLine`/`ScrollbackLine` type hierarchy, cursor pending-wrap behaviour, scrollback push granularity, and wide character handling.
+The repository contains:
 
-Implementation was carried out by OpenAI Codex guided by a detailed prompt derived from the design session, with the test suite used as a spec to validate correctness.
+- source code
+- Gradle build files
+- unit tests documenting expected behavior and edge cases
+- incremental git history with feature additions separated from follow-up cleanup/refinement
