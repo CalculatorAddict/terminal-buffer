@@ -3,12 +3,15 @@ package org.example.buffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.example.buffer.cursor.CursorState;
 import org.example.buffer.model.Cell;
 import org.example.buffer.model.CellAttributes;
 import org.example.buffer.model.Line;
 import org.example.buffer.model.MutableLine;
 import org.example.buffer.model.ScrollbackLine;
 import org.example.buffer.reflow.ReflowEngine;
+import org.example.buffer.write.CellFactory;
+import org.example.buffer.write.TextWriter;
 
 /**
  * Terminal text buffer with a visible screen and append-only scrollback history.
@@ -29,8 +32,8 @@ import org.example.buffer.reflow.ReflowEngine;
 public class TerminalBuffer {
     private final List<MutableLine> screen;
     private final List<ScrollbackLine> scrollback;
-    private int cursorCol;
-    private int cursorRow;
+    private final CursorState cursorState;
+    private final TextWriter textWriter;
     private CellAttributes currentAttributes;
     private int width;
     private int height;
@@ -54,6 +57,8 @@ public class TerminalBuffer {
         for (int i = 0; i < height; i++) {
             screen.add(new MutableLine());
         }
+        this.cursorState = new CursorState(width, height);
+        this.textWriter = new TextWriter(screen, scrollback, cursorState, maxScrollbackSize, new CellFactory());
         this.currentAttributes = CellAttributes.DEFAULT;
     }
 
@@ -62,11 +67,11 @@ public class TerminalBuffer {
     }
 
     public int getCursorCol() {
-        return cursorCol;
+        return cursorState.getCursorCol();
     }
 
     public int getCursorRow() {
-        return cursorRow;
+        return cursorState.getCursorRow();
     }
 
     /**
@@ -76,12 +81,11 @@ public class TerminalBuffer {
      * represents the pending-wrap state produced by writing exactly to the end of a row.</p>
      */
     public void setCursor(int col, int row) {
-        cursorCol = clamp(col, 0, width);
-        cursorRow = clamp(row, 0, height - 1);
+        cursorState.setCursor(col, row);
     }
 
     public void moveCursor(int dcol, int drow) {
-        setCursor(cursorCol + dcol, cursorRow + drow);
+        cursorState.moveCursor(dcol, drow);
     }
 
     /**
@@ -91,17 +95,7 @@ public class TerminalBuffer {
      * when already on the last visible row. Control characters update cursor state but do not create cells.</p>
      */
     public void writeText(String text) {
-        if (text == null || text.isEmpty()) {
-            return;
-        }
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            // Control characters mutate cursor state directly and never materialize as cells.
-            if (handleControlCharacter(c)) {
-                continue;
-            }
-            writeCell(createCell(c));
-        }
+        textWriter.writeText(text, currentAttributes);
     }
 
     /**
@@ -111,24 +105,11 @@ public class TerminalBuffer {
      * are inserted into the current row and may cascade overflow into following rows.</p>
      */
     public void insertText(String text) {
-        if (text == null || text.isEmpty()) {
-            return;
-        }
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            // Insert shares the same CR/LF semantics as write, then resumes cell insertion at the new cursor.
-            if (handleControlCharacter(c)) {
-                continue;
-            }
-            Cell cell = createCell(c);
-            normalizeCursorForSpan(cell.getColSpan());
-            insertCell(cursorRow, cursorCol, cell);
-            advanceCursor(cell.getColSpan());
-        }
+        textWriter.insertText(text, currentAttributes);
     }
 
     public void fillLine(int row, char c) {
-        int clampedRow = clamp(row, 0, height - 1);
+        int clampedRow = cursorState.clampRow(row);
         MutableLine line = new MutableLine();
         for (int col = 0; col < width; col++) {
             line.addCell(new Cell(c, currentAttributes, 1));
@@ -138,7 +119,7 @@ public class TerminalBuffer {
     }
 
     public void insertEmptyLineAtBottom() {
-        scrollUp();
+        textWriter.insertEmptyLineAtBottom();
     }
 
     public void clearScreen() {
@@ -146,7 +127,7 @@ public class TerminalBuffer {
         for (int i = 0; i < height; i++) {
             screen.add(new MutableLine());
         }
-        setCursor(cursorCol, cursorRow);
+        cursorState.setCursor(cursorState.getCursorCol(), cursorState.getCursorRow());
     }
 
     public void clearAll() {
@@ -174,20 +155,20 @@ public class TerminalBuffer {
                 scrollback,
                 width,
                 maxScrollbackSize,
-                cursorRow,
-                cursorCol,
+                cursorState.getCursorRow(),
+                cursorState.getCursorCol(),
                 newWidth,
                 newHeight
         );
 
         width = newWidth;
         height = newHeight;
+        cursorState.setDimensions(newWidth, newHeight);
         scrollback.clear();
         scrollback.addAll(result.scrollback());
         screen.clear();
         screen.addAll(result.screen());
-        cursorRow = result.cursorRow();
-        cursorCol = result.cursorCol();
+        cursorState.setCursor(result.cursorCol(), result.cursorRow());
     }
 
     public Cell getCell(int col, int row) {
@@ -274,155 +255,4 @@ public class TerminalBuffer {
     public int getMaxScrollbackSize() {
         return maxScrollbackSize;
     }
-
-    private void writeCell(Cell cell) {
-        normalizeCursorForSpan(cell.getColSpan());
-        MutableLine line = screen.get(cursorRow);
-        padLineToColumn(line, cursorCol);
-        int cellIndex = line.visualColToCellIndex(cursorCol);
-        // Writes replace the existing cell when the cursor is inside populated content,
-        // otherwise they extend the row.
-        if (cellIndex < line.cellLength()) {
-            line.setCell(cellIndex, cell);
-        } else {
-            line.addCell(cell);
-        }
-        overflowLine(cursorRow);
-        advanceCursor(cell.getColSpan());
-    }
-
-    private void insertCell(int row, int visualCol, Cell cell) {
-        MutableLine line = screen.get(row);
-        padLineToColumn(line, visualCol);
-        // Inserts operate on cell indices, not raw visual columns, so wide cells stay intact.
-        int cellIndex = line.visualColToCellIndex(visualCol);
-        line.addCell(cellIndex, cell);
-        if (line.visualLength() > width) {
-            markWrapped(line);
-        }
-        overflowLine(row);
-    }
-
-    private void padLineToColumn(MutableLine line, int visualCol) {
-        // Writing past the current content implicitly fills the gap with blank cells carrying current attributes.
-        while (line.visualLength() < visualCol) {
-            line.addCell(new Cell(' ', currentAttributes, 1));
-        }
-    }
-
-    private void advanceCursor(int span) {
-        cursorCol += span;
-        // The pending-wrap state uses cursorCol == width, so only values strictly past width
-        // should advance to the next physical row.
-        while (cursorCol > width) {
-            cursorCol -= width;
-            if (cursorRow == height - 1) {
-                scrollUp();
-            } else {
-                cursorRow++;
-            }
-        }
-    }
-
-    private void normalizeCursorForSpan(int span) {
-        if (cursorCol >= width || cursorCol + span > width) {
-            // Mark the current physical row as continuing before moving the cursor so resize can rejoin it later.
-            markWrapped(screen.get(cursorRow));
-            cursorCol = 0;
-            if (cursorRow == height - 1) {
-                scrollUp();
-            } else {
-                cursorRow++;
-            }
-        }
-    }
-
-    /**
-     * Scrolls the visible content up by one physical row.
-     *
-     * <p>The top screen row is copied into scrollback, a blank row is appended at the bottom, and the cursor position
-     * is left untouched so callers can decide how scrolling affects cursor movement.</p>
-     */
-    private void scrollUp() {
-        if (!screen.isEmpty()) {
-            // Scrollback stores immutable snapshots of physical rows, including whether each row wrapped forward.
-            scrollback.add(new ScrollbackLine(screen.remove(0)));
-            if (scrollback.size() > maxScrollbackSize) {
-                scrollback.remove(0);
-            }
-            screen.add(new MutableLine());
-        }
-    }
-
-    private void overflowLine(int row) {
-        MutableLine line = screen.get(row);
-        if (line.visualLength() <= width) {
-            return;
-        }
-
-        // Insert can push the last cell off the row, so the source row must be marked
-        // as continuing into the next physical row before the overflow cascades.
-        Cell overflow = line.removeCell(line.cellLength() - 1);
-        markWrapped(line);
-        int nextRow = row + 1;
-        if (nextRow >= height) {
-            scrollUp();
-            nextRow = height - 1;
-        }
-        insertCell(nextRow, 0, overflow);
-    }
-
-    private Cell createCell(char c) {
-        return new Cell(c, currentAttributes, charWidth(c));
-    }
-
-    private void markWrapped(MutableLine line) {
-        if (!line.isWrapped()) {
-            line.setWrapped(true);
-        }
-    }
-
-    private boolean handleControlCharacter(char c) {
-        if (c == '\r') {
-            cursorCol = 0;
-            return true;
-        }
-        if (c == '\n') {
-            // This buffer treats '\n' as "move to next row and reset column".
-            // A full terminal emulator would usually distinguish line feed from carriage return
-            // and let escape-sequence handling decide how those controls interact.
-            cursorCol = 0;
-            if (cursorRow == height - 1) {
-                scrollUp();
-            } else {
-                cursorRow++;
-            }
-            return true;
-        }
-        return false;
-    }
-
-    private int charWidth(char c) {
-        return isWide(c) ? 2 : 1;
-    }
-
-    private boolean isWide(char c) {
-        Character.UnicodeBlock block = Character.UnicodeBlock.of(c);
-        return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
-                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
-                || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
-                || block == Character.UnicodeBlock.HIRAGANA
-                || block == Character.UnicodeBlock.KATAKANA
-                || block == Character.UnicodeBlock.HANGUL_SYLLABLES
-                || block == Character.UnicodeBlock.HANGUL_JAMO
-                || block == Character.UnicodeBlock.HANGUL_COMPATIBILITY_JAMO
-                || block == Character.UnicodeBlock.CJK_SYMBOLS_AND_PUNCTUATION
-                || block == Character.UnicodeBlock.ENCLOSED_CJK_LETTERS_AND_MONTHS
-                || block == Character.UnicodeBlock.HALFWIDTH_AND_FULLWIDTH_FORMS;
-    }
-
-    private int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
-
 }
