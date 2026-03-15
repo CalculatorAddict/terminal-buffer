@@ -7,6 +7,7 @@ import org.example.buffer.model.TerminalColor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -25,6 +26,30 @@ class TerminalBufferTest {
         buffer.moveCursor(-10, 10);
         assertEquals(0, buffer.getCursorCol());
         assertEquals(2, buffer.getCursorRow());
+    }
+
+    @Test
+    void directionalCursorHelpersClampWithinScreenAndRejectNegativeDistances() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 3, 10);
+
+        buffer.setCursor(2, 1);
+        buffer.moveCursorUp(1);
+        assertEquals(2, buffer.getCursorCol());
+        assertEquals(0, buffer.getCursorRow());
+
+        buffer.moveCursorLeft(10);
+        assertEquals(0, buffer.getCursorCol());
+        assertEquals(0, buffer.getCursorRow());
+
+        buffer.moveCursorDown(10);
+        assertEquals(0, buffer.getCursorCol());
+        assertEquals(2, buffer.getCursorRow());
+
+        buffer.moveCursorRight(10);
+        assertEquals(4, buffer.getCursorCol());
+        assertEquals(2, buffer.getCursorRow());
+
+        assertThrows(IllegalArgumentException.class, () -> buffer.moveCursorRight(-1));
     }
 
     @Test
@@ -260,6 +285,21 @@ class TerminalBufferTest {
     }
 
     @Test
+    void clearLineSupportsCurrentRowAndExplicitRow() {
+        TerminalBuffer buffer = new TerminalBuffer(3, 3, 10);
+
+        buffer.fillLine(0, 'a');
+        buffer.fillLine(1, 'b');
+        buffer.setCursor(2, 1);
+        buffer.clearLine();
+        buffer.clearLine(0);
+
+        assertEquals("\n\n", buffer.getScreenString());
+        assertNull(buffer.getChar(0, 0));
+        assertNull(buffer.getChar(0, 1));
+    }
+
+    @Test
     void fillLineUsesCurrentAttributesAcrossEntireRow() {
         TerminalBuffer buffer = new TerminalBuffer(3, 2, 10);
         CellAttributes attributes = new CellAttributes(
@@ -276,6 +316,28 @@ class TerminalBufferTest {
         assertEquals("###", buffer.getLine(1).getString());
         for (int col = 0; col < 3; col++) {
             assertEquals('#', buffer.getCell(col, 1).getChar());
+            assertEquals(attributes, buffer.getAttributes(col, 1));
+        }
+    }
+
+    @Test
+    void fillLineOnCurrentRowUsesCursorRowAndCurrentAttributes() {
+        TerminalBuffer buffer = new TerminalBuffer(3, 3, 10);
+        CellAttributes attributes = new CellAttributes(
+                TerminalColor.GREEN,
+                TerminalColor.BLACK,
+                false,
+                true,
+                false
+        );
+
+        buffer.setCursor(2, 1);
+        buffer.setAttributes(attributes);
+        buffer.fillLine('@');
+
+        assertEquals("@@@", buffer.getLine(1).getString());
+        assertEquals("", buffer.getLine(0).getString());
+        for (int col = 0; col < 3; col++) {
             assertEquals(attributes, buffer.getAttributes(col, 1));
         }
     }
@@ -309,6 +371,28 @@ class TerminalBufferTest {
         assertEquals(attributes, buffer.getScrollbackAttributes(1, 0));
         assertEquals(CellAttributes.DEFAULT, buffer.getScrollbackAttributes(5, 0));
         assertEquals(CellAttributes.DEFAULT, buffer.getScrollbackAttributes(0, 2));
+    }
+
+    @Test
+    void charAccessorsReturnCharactersOrNullForEmptyCells() {
+        TerminalBuffer buffer = new TerminalBuffer(2, 1, 10);
+
+        buffer.writeText("abc");
+
+        assertEquals(Character.valueOf('c'), buffer.getChar(0, 0));
+        assertNull(buffer.getChar(1, 0));
+        assertEquals(Character.valueOf('a'), buffer.getScrollbackChar(0, 0));
+        assertEquals(Character.valueOf('b'), buffer.getScrollbackChar(1, 0));
+        assertNull(buffer.getScrollbackChar(3, 0));
+    }
+
+    @Test
+    void scrollbackAccessorReturnsUnmodifiableView() {
+        TerminalBuffer buffer = new TerminalBuffer(2, 1, 10);
+
+        buffer.writeText("abc");
+
+        assertThrows(UnsupportedOperationException.class, () -> buffer.getScrollback().clear());
     }
 
     @Test
