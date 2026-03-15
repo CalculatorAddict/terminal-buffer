@@ -8,4 +8,6 @@ public interface Line {
     int visualLength();
 
     String getString();
+
+    boolean isWrapped();
 }

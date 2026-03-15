@@ -7,11 +7,13 @@ public final class ScrollbackLine implements Line {
     private final List<Cell> cells;
     private final int visualLength;
     private final String stringValue;
+    private final boolean wrapped;
 
     public ScrollbackLine(MutableLine line) {
         this.cells = List.copyOf(new ArrayList<>(line.getCells()));
         this.visualLength = line.visualLength();
         this.stringValue = line.getString();
+        this.wrapped = line.isWrapped();
     }
 
     @Override
@@ -43,6 +45,11 @@ public final class ScrollbackLine implements Line {
     @Override
     public String getString() {
         return stringValue;
+    }
+
+    @Override
+    public boolean isWrapped() {
+        return wrapped;
     }
 
     public List<Cell> getCells() {

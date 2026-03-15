@@ -5,13 +5,19 @@ import java.util.List;
 
 public class MutableLine implements Line {
     private final List<Cell> cells;
+    private boolean wrapped;
 
     public MutableLine() {
         this.cells = new ArrayList<>();
     }
 
     public MutableLine(List<Cell> cells) {
+        this(cells, false);
+    }
+
+    public MutableLine(List<Cell> cells, boolean wrapped) {
         this.cells = new ArrayList<>(cells);
+        this.wrapped = wrapped;
     }
 
     @Override
@@ -53,6 +59,11 @@ public class MutableLine implements Line {
         return builder.toString();
     }
 
+    @Override
+    public boolean isWrapped() {
+        return wrapped;
+    }
+
     public int physicalLineCount(int screenWidth) {
         if (screenWidth <= 0) {
             throw new IllegalArgumentException("screenWidth must be positive");
@@ -88,6 +99,10 @@ public class MutableLine implements Line {
         cells.set(index, cell);
     }
 
+    public void setWrapped(boolean wrapped) {
+        this.wrapped = wrapped;
+    }
+
     public int visualColToCellIndex(int visualCol) {
         if (visualCol <= 0) {
             return 0;
@@ -111,6 +126,6 @@ public class MutableLine implements Line {
     }
 
     public MutableLine copy() {
-        return new MutableLine(cells);
+        return new MutableLine(cells, wrapped);
     }
 }

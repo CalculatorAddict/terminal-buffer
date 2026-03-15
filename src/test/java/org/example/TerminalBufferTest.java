@@ -13,7 +13,7 @@ class TerminalBufferTest {
         TerminalBuffer buffer = new TerminalBuffer(4, 3, 10);
 
         buffer.setCursor(99, -4);
-        assertEquals(3, buffer.getCursorCol());
+        assertEquals(4, buffer.getCursorCol());
         assertEquals(0, buffer.getCursorRow());
 
         buffer.moveCursor(-10, 10);
@@ -211,6 +211,8 @@ class TerminalBufferTest {
         TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
 
         assertNull(buffer.getCell(0, 0));
+        assertNull(buffer.getCell(0, -1));
+        assertNull(buffer.getCell(5, 0));
         assertEquals(CellAttributes.DEFAULT, buffer.getAttributes(0, 0));
         assertNull(buffer.getScrollbackCell(0, 0));
         assertNull(buffer.getScrollbackLine(0));
@@ -282,6 +284,29 @@ class TerminalBufferTest {
 
     @Test
     void resizeKeepsCursorVisualPositionWhenPossible() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 3, 10);
+
+        buffer.writeText("abcdef");
+        buffer.setCursor(3, 0);
+        buffer.resize(2, 3);
+
+        assertEquals(1, buffer.getCursorCol());
+        assertEquals(0, buffer.getCursorRow());
+    }
+
+    @Test
+    void resizePreservesExactWidthLogicalLineBoundaries() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
+
+        buffer.fillLine(0, 'a');
+        buffer.fillLine(1, 'b');
+        buffer.resize(8, 2);
+
+        assertEquals("aaaa\nbbbb", buffer.getScreenString());
+    }
+
+    @Test
+    void resizeClampsCursorToNearestValidPositionWhenTargetColumnNoLongerExists() {
         TerminalBuffer buffer = new TerminalBuffer(5, 4, 10);
 
         buffer.setCursor(4, 3);
