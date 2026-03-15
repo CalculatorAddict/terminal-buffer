@@ -275,6 +275,8 @@ class TerminalBufferTest {
         assertNull(buffer.getScrollbackCell(0, 0));
         assertNull(buffer.getScrollbackLine(0));
         assertNotNull(buffer.getLine(0));
+        assertNull(buffer.getLine(-1));
+        assertNull(buffer.getLine(2));
     }
 
     @Test

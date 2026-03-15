@@ -177,7 +177,10 @@ public class TerminalBuffer {
     }
 
     public Line getLine(int row) {
-        return screen.get(clamp(row, 0, height - 1));
+        if (row < 0 || row >= height) {
+            return null;
+        }
+        return screen.get(row);
     }
 
     public ScrollbackLine getScrollbackLine(int scrollbackRow) {
