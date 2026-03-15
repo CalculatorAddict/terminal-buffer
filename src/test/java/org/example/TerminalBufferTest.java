@@ -82,6 +82,52 @@ class TerminalBufferTest {
     }
 
     @Test
+    void newlineInWriteTextMovesCursorToNextRow() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 3, 10);
+
+        buffer.writeText("ab\ncd");
+
+        assertEquals("ab\ncd\n", buffer.getScreenString());
+        assertEquals(2, buffer.getCursorCol());
+        assertEquals(1, buffer.getCursorRow());
+    }
+
+    @Test
+    void carriageReturnInWriteTextMovesCursorToColumnZero() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
+
+        buffer.writeText("ab\rc");
+
+        assertEquals("cb\n", buffer.getScreenString());
+        assertEquals(1, buffer.getCursorCol());
+        assertEquals(0, buffer.getCursorRow());
+    }
+
+    @Test
+    void carriageReturnNewlineMovesCursorToStartOfNextRow() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 3, 10);
+
+        buffer.writeText("ab\r\ncd");
+
+        assertEquals("ab\ncd\n", buffer.getScreenString());
+        assertEquals(2, buffer.getCursorCol());
+        assertEquals(1, buffer.getCursorRow());
+    }
+
+    @Test
+    void newlineOnLastRowTriggersScrollUp() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
+
+        buffer.writeText("ab\ncd\n");
+
+        assertEquals(1, buffer.getScrollback().size());
+        assertEquals("ab", buffer.getScrollbackLine(0).getString());
+        assertEquals("cd\n", buffer.getScreenString());
+        assertEquals(0, buffer.getCursorCol());
+        assertEquals(1, buffer.getCursorRow());
+    }
+
+    @Test
     void insertAtColumnZeroShiftsContentRightAndWrapsOverflow() {
         TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
 
@@ -92,6 +138,18 @@ class TerminalBufferTest {
         assertEquals("XYab\ncd", buffer.getScreenString());
         assertEquals(2, buffer.getCursorCol());
         assertEquals(0, buffer.getCursorRow());
+    }
+
+    @Test
+    void insertTextHandlesCarriageReturnAndNewlineLikeWriteText() {
+        TerminalBuffer buffer = new TerminalBuffer(4, 3, 10);
+
+        buffer.writeText("ab");
+        buffer.insertText("\r\ncd");
+
+        assertEquals("ab\ncd\n", buffer.getScreenString());
+        assertEquals(2, buffer.getCursorCol());
+        assertEquals(1, buffer.getCursorRow());
     }
 
     @Test

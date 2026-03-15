@@ -70,7 +70,11 @@ public class TerminalBuffer {
             return;
         }
         for (int i = 0; i < text.length(); i++) {
-            writeCell(createCell(text.charAt(i)));
+            char c = text.charAt(i);
+            if (handleControlCharacter(c)) {
+                continue;
+            }
+            writeCell(createCell(c));
         }
     }
 
@@ -79,7 +83,11 @@ public class TerminalBuffer {
             return;
         }
         for (int i = 0; i < text.length(); i++) {
-            Cell cell = createCell(text.charAt(i));
+            char c = text.charAt(i);
+            if (handleControlCharacter(c)) {
+                continue;
+            }
+            Cell cell = createCell(c);
             normalizeCursorForSpan(cell.getColSpan());
             insertCell(cursorRow, cursorCol, cell);
             advanceCursor(cell.getColSpan());
@@ -311,6 +319,23 @@ public class TerminalBuffer {
 
     private Cell createCell(char c) {
         return new Cell(c, currentAttributes, charWidth(c));
+    }
+
+    private boolean handleControlCharacter(char c) {
+        if (c == '\r') {
+            cursorCol = 0;
+            return true;
+        }
+        if (c == '\n') {
+            cursorCol = 0;
+            if (cursorRow == height - 1) {
+                scrollUp();
+            } else {
+                cursorRow++;
+            }
+            return true;
+        }
+        return false;
     }
 
     private List<MutableLine> rewrapLine(Line line, int targetWidth) {
