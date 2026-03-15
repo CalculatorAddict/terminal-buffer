@@ -36,13 +36,6 @@ public class TerminalBuffer {
     private int height;
     private final int maxScrollbackSize;
 
-    /**
-     * Creates a new terminal buffer.
-     *
-     * @param width screen width in columns
-     * @param height screen height in physical rows
-     * @param maxScrollbackSize maximum number of physical rows retained in scrollback
-     */
     public TerminalBuffer(int width, int height, int maxScrollbackSize) {
         if (width <= 0) {
             throw new IllegalArgumentException("width must be positive");
@@ -64,29 +57,14 @@ public class TerminalBuffer {
         this.currentAttributes = CellAttributes.DEFAULT;
     }
 
-    /**
-     * Sets the attributes used by subsequent editing operations.
-     *
-     * @param attributes attributes to apply; {@code null} resets to {@link CellAttributes#DEFAULT}
-     */
     public void setAttributes(CellAttributes attributes) {
         this.currentAttributes = attributes == null ? CellAttributes.DEFAULT : attributes;
     }
 
-    /**
-     * Returns the current cursor column.
-     *
-     * @return 0-based cursor column, or {@code width} for the pending-wrap state
-     */
     public int getCursorCol() {
         return cursorCol;
     }
 
-    /**
-     * Returns the current cursor row.
-     *
-     * @return 0-based physical screen row
-     */
     public int getCursorRow() {
         return cursorRow;
     }
@@ -94,20 +72,14 @@ public class TerminalBuffer {
     /**
      * Sets the cursor position.
      *
-     * @param col target column, clamped to {@code [0, width]}
-     * @param row target row, clamped to {@code [0, height - 1]}
+     * <p>The column is clamped to the inclusive range {@code [0, width]}. The value {@code width} is valid and
+     * represents the pending-wrap state produced by writing exactly to the end of a row.</p>
      */
     public void setCursor(int col, int row) {
         cursorCol = clamp(col, 0, width);
         cursorRow = clamp(row, 0, height - 1);
     }
 
-    /**
-     * Moves the cursor relative to its current position.
-     *
-     * @param dcol column delta
-     * @param drow row delta
-     */
     public void moveCursor(int dcol, int drow) {
         setCursor(cursorCol + dcol, cursorRow + drow);
     }
@@ -115,7 +87,8 @@ public class TerminalBuffer {
     /**
      * Writes text at the current cursor using the current attributes.
      *
-     * @param text text to write; {@code '\r'} resets the column and {@code '\n'} advances to the next physical row
+     * <p>{@code '\r'} resets the cursor column to {@code 0}. {@code '\n'} moves to the next physical row and scrolls
+     * when already on the last visible row. Control characters update cursor state but do not create cells.</p>
      */
     public void writeText(String text) {
         if (text == null || text.isEmpty()) {
@@ -123,6 +96,7 @@ public class TerminalBuffer {
         }
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
+            // Control characters mutate cursor state directly and never materialize as cells.
             if (handleControlCharacter(c)) {
                 continue;
             }
@@ -133,7 +107,8 @@ public class TerminalBuffer {
     /**
      * Inserts text at the current cursor using the current attributes.
      *
-     * @param text text to insert; {@code '\r'} and {@code '\n'} adjust the cursor without inserting cells
+     * <p>Control characters follow the same cursor-only semantics as {@link #writeText(String)}. Printable characters
+     * are inserted into the current row and may cascade overflow into following rows.</p>
      */
     public void insertText(String text) {
         if (text == null || text.isEmpty()) {
@@ -141,6 +116,7 @@ public class TerminalBuffer {
         }
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
+            // Insert shares the same CR/LF semantics as write, then resumes cell insertion at the new cursor.
             if (handleControlCharacter(c)) {
                 continue;
             }
@@ -151,12 +127,6 @@ public class TerminalBuffer {
         }
     }
 
-    /**
-     * Replaces a physical screen row with the given character repeated across the full width.
-     *
-     * @param row target physical row, clamped to the visible screen
-     * @param c character used to fill the row
-     */
     public void fillLine(int row, char c) {
         int clampedRow = clamp(row, 0, height - 1);
         MutableLine line = new MutableLine();
@@ -167,16 +137,10 @@ public class TerminalBuffer {
         screen.set(clampedRow, line);
     }
 
-    /**
-     * Scrolls the visible screen up by one physical row and appends a blank row at the bottom.
-     */
     public void insertEmptyLineAtBottom() {
         scrollUp();
     }
 
-    /**
-     * Clears the visible screen while preserving scrollback history.
-     */
     public void clearScreen() {
         screen.clear();
         for (int i = 0; i < height; i++) {
@@ -185,9 +149,6 @@ public class TerminalBuffer {
         setCursor(cursorCol, cursorRow);
     }
 
-    /**
-     * Clears both the visible screen and the scrollback history.
-     */
     public void clearAll() {
         clearScreen();
         scrollback.clear();
@@ -196,8 +157,8 @@ public class TerminalBuffer {
     /**
      * Resizes the screen and reflows the full buffer contents.
      *
-     * @param newWidth new screen width in columns
-     * @param newHeight new screen height in physical rows
+     * <p>Resize reconstructs logical lines from scrollback plus screen, re-wraps them to the new width, trims
+     * scrollback to capacity, and remaps the cursor using visual-position semantics.</p>
      */
     public void resize(int newWidth, int newHeight) {
         if (newWidth <= 0) {
@@ -207,6 +168,7 @@ public class TerminalBuffer {
             throw new IllegalArgumentException("newHeight must be positive");
         }
 
+        // Reflow computes a complete replacement screen/scrollback snapshot plus the remapped cursor.
         ReflowEngine.ReflowResult result = ReflowEngine.reflow(
                 screen,
                 scrollback,
@@ -228,13 +190,6 @@ public class TerminalBuffer {
         cursorCol = result.cursorCol();
     }
 
-    /**
-     * Returns the visible cell covering the given position.
-     *
-     * @param col 0-based visual column
-     * @param row 0-based physical screen row
-     * @return the covering cell, or {@code null} for out-of-bounds or empty positions
-     */
     public Cell getCell(int col, int row) {
         if (row < 0 || row >= height || col < 0 || col > width) {
             return null;
@@ -242,13 +197,6 @@ public class TerminalBuffer {
         return screen.get(row).getCell(col);
     }
 
-    /**
-     * Returns a scrollback cell covering the given position.
-     *
-     * @param col 0-based visual column
-     * @param scrollbackRow 0-based physical scrollback row
-     * @return the covering cell, or {@code null} for out-of-bounds or empty positions
-     */
     public Cell getScrollbackCell(int col, int scrollbackRow) {
         if (scrollbackRow < 0 || scrollbackRow >= scrollback.size() || col < 0) {
             return null;
@@ -256,24 +204,11 @@ public class TerminalBuffer {
         return scrollback.get(scrollbackRow).getCell(col);
     }
 
-    /**
-     * Returns the attributes at the given visible position.
-     *
-     * @param col 0-based visual column
-     * @param row 0-based physical screen row
-     * @return the cell attributes at that position, or {@link CellAttributes#DEFAULT} when no cell exists
-     */
     public CellAttributes getAttributes(int col, int row) {
         Cell cell = getCell(col, row);
         return cell == null ? CellAttributes.DEFAULT : cell.getAttributes();
     }
 
-    /**
-     * Returns a visible physical row.
-     *
-     * @param row 0-based physical screen row
-     * @return the row, or {@code null} when out of bounds
-     */
     public Line getLine(int row) {
         if (row < 0 || row >= height) {
             return null;
@@ -281,12 +216,6 @@ public class TerminalBuffer {
         return screen.get(row);
     }
 
-    /**
-     * Returns a physical row from scrollback.
-     *
-     * @param scrollbackRow 0-based physical scrollback row
-     * @return the immutable row, or {@code null} when out of bounds
-     */
     public ScrollbackLine getScrollbackLine(int scrollbackRow) {
         if (scrollbackRow < 0 || scrollbackRow >= scrollback.size()) {
             return null;
@@ -294,11 +223,6 @@ public class TerminalBuffer {
         return scrollback.get(scrollbackRow);
     }
 
-    /**
-     * Returns the visible screen as newline-separated row strings.
-     *
-     * @return the screen contents from top to bottom
-     */
     public String getScreenString() {
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < screen.size(); i++) {
@@ -310,11 +234,6 @@ public class TerminalBuffer {
         return builder.toString();
     }
 
-    /**
-     * Returns scrollback followed by screen as newline-separated row strings.
-     *
-     * @return the full buffer contents from oldest scrollback row to newest visible row
-     */
     public String getFullString() {
         StringBuilder builder = new StringBuilder();
         for (ScrollbackLine scrollbackLine : scrollback) {
@@ -332,56 +251,26 @@ public class TerminalBuffer {
         return builder.toString();
     }
 
-    /**
-     * Returns the live list backing the visible screen.
-     *
-     * @return mutable screen rows in top-to-bottom order
-     */
     public List<MutableLine> getScreen() {
         return screen;
     }
 
-    /**
-     * Returns the live scrollback list.
-     *
-     * @return immutable scrollback rows in oldest-to-newest order
-     */
     public List<ScrollbackLine> getScrollback() {
         return scrollback;
     }
 
-    /**
-     * Returns the attributes used for future writes.
-     *
-     * @return the current write attributes
-     */
     public CellAttributes getCurrentAttributes() {
         return currentAttributes;
     }
 
-    /**
-     * Returns the current screen width.
-     *
-     * @return width in columns
-     */
     public int getWidth() {
         return width;
     }
 
-    /**
-     * Returns the current screen height.
-     *
-     * @return height in physical rows
-     */
     public int getHeight() {
         return height;
     }
 
-    /**
-     * Returns the configured scrollback capacity.
-     *
-     * @return maximum number of physical rows retained in scrollback
-     */
     public int getMaxScrollbackSize() {
         return maxScrollbackSize;
     }
@@ -391,6 +280,8 @@ public class TerminalBuffer {
         MutableLine line = screen.get(cursorRow);
         padLineToColumn(line, cursorCol);
         int cellIndex = line.visualColToCellIndex(cursorCol);
+        // Writes replace the existing cell when the cursor is inside populated content,
+        // otherwise they extend the row.
         if (cellIndex < line.cellLength()) {
             line.setCell(cellIndex, cell);
         } else {
@@ -403,6 +294,7 @@ public class TerminalBuffer {
     private void insertCell(int row, int visualCol, Cell cell) {
         MutableLine line = screen.get(row);
         padLineToColumn(line, visualCol);
+        // Inserts operate on cell indices, not raw visual columns, so wide cells stay intact.
         int cellIndex = line.visualColToCellIndex(visualCol);
         line.addCell(cellIndex, cell);
         if (line.visualLength() > width) {
@@ -412,6 +304,7 @@ public class TerminalBuffer {
     }
 
     private void padLineToColumn(MutableLine line, int visualCol) {
+        // Writing past the current content implicitly fills the gap with blank cells carrying current attributes.
         while (line.visualLength() < visualCol) {
             line.addCell(new Cell(' ', currentAttributes, 1));
         }
@@ -419,7 +312,7 @@ public class TerminalBuffer {
 
     private void advanceCursor(int span) {
         cursorCol += span;
-        // The pending-wrap state is represented by cursorCol == width, so only values strictly past width
+        // The pending-wrap state uses cursorCol == width, so only values strictly past width
         // should advance to the next physical row.
         while (cursorCol > width) {
             cursorCol -= width;
@@ -433,7 +326,7 @@ public class TerminalBuffer {
 
     private void normalizeCursorForSpan(int span) {
         if (cursorCol >= width || cursorCol + span > width) {
-            // Mark the current physical row as continuing before moving the cursor so resize can later rejoin it.
+            // Mark the current physical row as continuing before moving the cursor so resize can rejoin it later.
             markWrapped(screen.get(cursorRow));
             cursorCol = 0;
             if (cursorRow == height - 1) {
@@ -444,9 +337,15 @@ public class TerminalBuffer {
         }
     }
 
+    /**
+     * Scrolls the visible content up by one physical row.
+     *
+     * <p>The top screen row is copied into scrollback, a blank row is appended at the bottom, and the cursor position
+     * is left untouched so callers can decide how scrolling affects cursor movement.</p>
+     */
     private void scrollUp() {
         if (!screen.isEmpty()) {
-            // Scrollback stores immutable snapshots of physical rows, including whether the row wrapped forward.
+            // Scrollback stores immutable snapshots of physical rows, including whether each row wrapped forward.
             scrollback.add(new ScrollbackLine(screen.remove(0)));
             if (scrollback.size() > maxScrollbackSize) {
                 scrollback.remove(0);
@@ -461,7 +360,8 @@ public class TerminalBuffer {
             return;
         }
 
-        // Insert can push the last cell off the row; that row is now explicitly marked as wrapping into the next one.
+        // Insert can push the last cell off the row, so the source row must be marked
+        // as continuing into the next physical row before the overflow cascades.
         Cell overflow = line.removeCell(line.cellLength() - 1);
         markWrapped(line);
         int nextRow = row + 1;
@@ -488,6 +388,7 @@ public class TerminalBuffer {
             return true;
         }
         if (c == '\n') {
+            // Newline is a row transition, not a stored glyph, so it resets the column before moving vertically.
             cursorCol = 0;
             if (cursorRow == height - 1) {
                 scrollUp();

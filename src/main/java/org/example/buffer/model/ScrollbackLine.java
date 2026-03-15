@@ -24,10 +24,10 @@ public final class ScrollbackLine implements Line {
         this.wrapped = line.isWrapped();
     }
 
-    @Override
     /**
      * {@inheritDoc}
      */
+    @Override
     public Cell getCell(int visualCol) {
         if (visualCol < 0) {
             return null;
@@ -43,34 +43,34 @@ public final class ScrollbackLine implements Line {
         return null;
     }
 
-    @Override
     /**
      * {@inheritDoc}
      */
+    @Override
     public int cellLength() {
         return cells.size();
     }
 
-    @Override
     /**
      * {@inheritDoc}
      */
+    @Override
     public int visualLength() {
         return visualLength;
     }
 
-    @Override
     /**
      * {@inheritDoc}
      */
+    @Override
     public String getString() {
         return stringValue;
     }
 
-    @Override
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean isWrapped() {
         return wrapped;
     }

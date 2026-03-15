@@ -37,10 +37,10 @@ public class MutableLine implements Line {
         this.wrapped = wrapped;
     }
 
-    @Override
     /**
      * {@inheritDoc}
      */
+    @Override
     public Cell getCell(int visualCol) {
         if (visualCol < 0) {
             return null;
@@ -56,18 +56,18 @@ public class MutableLine implements Line {
         return null;
     }
 
-    @Override
     /**
      * {@inheritDoc}
      */
+    @Override
     public int cellLength() {
         return cells.size();
     }
 
-    @Override
     /**
      * {@inheritDoc}
      */
+    @Override
     public int visualLength() {
         int length = 0;
         for (Cell cell : cells) {
@@ -76,10 +76,10 @@ public class MutableLine implements Line {
         return length;
     }
 
-    @Override
     /**
      * {@inheritDoc}
      */
+    @Override
     public String getString() {
         StringBuilder builder = new StringBuilder(cells.size());
         for (Cell cell : cells) {
@@ -88,10 +88,10 @@ public class MutableLine implements Line {
         return builder.toString();
     }
 
-    @Override
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean isWrapped() {
         return wrapped;
     }

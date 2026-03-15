@@ -61,6 +61,7 @@ public class Demo {
             }
             builder.append(cell.getChar());
             col += cell.getColSpan();
+            // Render wide cells with an extra placeholder space so the printed demo matches visual layout.
             if (cell.getColSpan() == 2 && col <= width) {
                 builder.append(' ');
             }

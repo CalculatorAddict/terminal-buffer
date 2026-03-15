@@ -1,5 +1,8 @@
 package org.example.buffer.model;
 
+/**
+ * View of a single physical screen row into a wider logical line.
+ */
 public final class Row {
     private final Line line;
     private final int visualOffset;
@@ -28,6 +31,10 @@ public final class Row {
         return Math.max(0, Math.min(screenWidth, line.visualLength() - visualOffset));
     }
 
+    /**
+     * Builds the row string by slicing the backing line in visual-column space rather than by cell index,
+     * so wide cells are included only when they intersect this row's visible window.
+     */
     public String getString() {
         StringBuilder builder = new StringBuilder();
         int rowEnd = visualOffset + screenWidth;

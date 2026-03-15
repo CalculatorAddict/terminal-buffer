@@ -57,6 +57,7 @@ public final class ReflowEngine {
             int newWidth,
             int newHeight
     ) {
+        // Capture the cursor as a logical-line position before rewriting physical rows at the new width.
         CursorVisualPosition targetVisualPosition = computeCursorVisualPosition(screen, scrollback, cursorRow, cursorCol);
         List<MutableLine> reflowedRows = new ArrayList<>();
         for (MutableLine logicalLine : collectLogicalLines(screen, scrollback)) {
@@ -102,6 +103,7 @@ public final class ReflowEngine {
             }
             if (currentRow.visualLength() > 0
                     && currentRow.visualLength() + cell.getColSpan() > targetWidth) {
+                // The current physical row is full; the next row continues the same logical line.
                 currentRow.setWrapped(true);
                 currentRow = new MutableLine();
                 rows.add(currentRow);
@@ -124,6 +126,7 @@ public final class ReflowEngine {
             if (currentLine == null) {
                 currentLine = new MutableLine();
             }
+            // Reconstruct each logical line by concatenating wrapped physical rows until a row terminates it.
             appendLineCells(currentLine, line);
             if (!line.isWrapped()) {
                 logicalLines.add(currentLine);
@@ -176,6 +179,7 @@ public final class ReflowEngine {
         for (int physicalRow = 0; physicalRow < physicalLines.size(); physicalRow++) {
             Line line = physicalLines.get(physicalRow);
             if (physicalRow == targetPhysicalRow) {
+                // Store the cursor relative to the reconstructed logical line, not the current physical row.
                 return new CursorVisualPosition(logicalLineIndex, logicalLineVisualBase + cursorCol);
             }
             if (line.isWrapped()) {
@@ -222,6 +226,7 @@ public final class ReflowEngine {
 
             if (logicalLineIndex == clampedLogicalLineIndex) {
                 resolvedPhysicalRow = physicalRow;
+                // If the original visual column no longer exists after reflow, land on the nearest valid column.
                 resolvedCol = clamp(targetVisualPosition.visualCol() - rowStart, 0, Math.min(width, line.visualLength()));
                 if (targetVisualPosition.visualCol() <= rowEnd || !line.isWrapped()) {
                     break;
