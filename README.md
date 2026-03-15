@@ -14,15 +14,13 @@ The text editing operations handle carriage return and newline directly: `\r` mo
 
 This is a deliberate simplification: the buffer treats `\n` as "line feed plus carriage return". A full terminal emulator would usually distinguish those controls and let escape-sequence handling upstream decide how they interact.
 
-The code is split into focused packages: `org.example.buffer` contains the public `TerminalBuffer` facade, `org.example.buffer.model` contains the line/cell data model, and `org.example.buffer.reflow` contains the resize/reflow logic.
+The code is split into focused packages: `org.example.buffer` contains the public `TerminalBuffer` facade and demo, `org.example.buffer.model` contains the line/cell data model, `org.example.buffer.reflow` contains the resize/reflow logic, `org.example.buffer.write` contains the write pipeline and cell construction logic, and `org.example.buffer.cursor` contains cursor state and clamping.
 
 ## Design Decisions
 
 ### Logical vs Physical Lines
 
 The core abstraction is a `Line` — an unbounded logical line with no fixed width. Physical layout (how many screen rows a line occupies) is computed on demand via `physicalLineCount(screenWidth)`. This cleanly separates content from presentation, and makes resize/reflow straightforward.
-
-A `Row` is a lightweight view into a `Line` at a given visual offset — it is never stored, only computed when needed for rendering or content access.
 
 ### Immutability at the Type Level
 
@@ -54,7 +52,7 @@ Cursor placement after resize uses visual-position semantics: before reflow, the
 - **Attributes** — set current foreground color, background color, and style flags (bold, italic, underline). Used by all subsequent editing operations.
 - **Editing** — `writeText`, `insertText`, `fillLine` — all use the current cursor position and current attributes.
 - **Screen** — `insertEmptyLineAtBottom`, `clearScreen`, `clearAll`.
-- **Content access** — `getCell`, `getAttributes`, `getLine`, `getScrollbackLine`, `getScreenString`, `getFullString`.
+- **Content access** — `getCell`, `getAttributes`, `getScrollbackCell`, `getScrollbackAttributes`, `getLine`, `getScrollbackLine`, `getScreenString`, `getFullString`.
 
 ## Demo
 

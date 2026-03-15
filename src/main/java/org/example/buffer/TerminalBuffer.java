@@ -190,6 +190,11 @@ public class TerminalBuffer {
         return cell == null ? CellAttributes.DEFAULT : cell.getAttributes();
     }
 
+    public CellAttributes getScrollbackAttributes(int col, int scrollbackRow) {
+        Cell cell = getScrollbackCell(col, scrollbackRow);
+        return cell == null ? CellAttributes.DEFAULT : cell.getAttributes();
+    }
+
     public Line getLine(int row) {
         if (row < 0 || row >= height) {
             return null;

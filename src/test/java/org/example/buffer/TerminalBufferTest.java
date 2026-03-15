@@ -272,6 +272,26 @@ class TerminalBufferTest {
     }
 
     @Test
+    void getScrollbackAttributesReturnsStoredAttributesAndDefaults() {
+        TerminalBuffer buffer = new TerminalBuffer(2, 1, 10);
+        CellAttributes attributes = new CellAttributes(
+                TerminalColor.GREEN,
+                TerminalColor.BLACK,
+                true,
+                true,
+                false
+        );
+
+        buffer.setAttributes(attributes);
+        buffer.writeText("abc");
+
+        assertEquals(attributes, buffer.getScrollbackAttributes(0, 0));
+        assertEquals(attributes, buffer.getScrollbackAttributes(1, 0));
+        assertEquals(CellAttributes.DEFAULT, buffer.getScrollbackAttributes(5, 0));
+        assertEquals(CellAttributes.DEFAULT, buffer.getScrollbackAttributes(0, 2));
+    }
+
+    @Test
     void cellAndAttributeAccessUseDefaultsForEmptyCells() {
         TerminalBuffer buffer = new TerminalBuffer(4, 2, 10);
 
@@ -281,6 +301,7 @@ class TerminalBufferTest {
         assertEquals(CellAttributes.DEFAULT, buffer.getAttributes(0, 0));
         assertNull(buffer.getScrollbackCell(0, 0));
         assertNull(buffer.getScrollbackLine(0));
+        assertEquals(CellAttributes.DEFAULT, buffer.getScrollbackAttributes(0, 0));
         assertNotNull(buffer.getLine(0));
         assertNull(buffer.getLine(-1));
         assertNull(buffer.getLine(2));
