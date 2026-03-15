@@ -43,6 +43,8 @@ The buffer also tracks:
 - current attributes used by normal writes and inserts
 - read-only scrollback views for inspection
 
+Rendering is intentionally separate from the core buffer. The demo's ANSI mode goes through [`AnsiRenderer`](src/main/java/org/example/buffer/render/AnsiRenderer.java), which converts stored `CellAttributes` into ANSI SGR escape sequences for terminal display.
+
 ## Requirements Coverage
 
 ### Setup
@@ -195,6 +197,8 @@ Run the ANSI-rendered demo:
 ```bash
 ./gradlew run --args=--ansi
 ```
+
+That mode explicitly uses [`AnsiRenderer`](src/main/java/org/example/buffer/render/AnsiRenderer.java). `TerminalBuffer` itself stores characters and attributes only; the renderer is the small adapter that turns those stored attributes into visible ANSI terminal styling.
 
 The demo prints step-by-step snapshots showing:
 
