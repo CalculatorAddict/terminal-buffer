@@ -211,7 +211,7 @@ The demo prints step-by-step snapshots showing:
 
 The later snapshots also demonstrate the spec-aligned cursor helpers plus the explicit current-row `fillLine(char)` and `clearLine()` operations.
 
-In plain mode, wide characters are rendered as ASCII `[]` placeholders so the output remains readable even if the terminal cannot render the glyph itself.
+In plain mode, wide characters are rendered as ASCII `[]` placeholders so the output remains readable even if the terminal cannot render the glyph itself. This is a demo-only fallback: the buffer still stores and exposes the real wide characters, and the demo prints their exact code points underneath each snapshot.
 
 ## Build And Test
 
@@ -255,3 +255,11 @@ The repository contains:
 - Gradle build files
 - unit tests documenting expected behavior and edge cases
 - incremental git history with feature additions separated from follow-up cleanup/refinement
+
+## AI Usage
+
+This project was developed with AI assistance as encouraged in the task requirements.
+
+Architecture and design decisions were worked out collaboratively with Claude (claude.ai) — including the logical/physical line separation, the Line/MutableLine/ScrollbackLine type hierarchy, cursor pending-wrap semantics, scrollback push granularity, wide character handling, and the wrapped flag approach for reflow.
+
+Implementation, iteration, and refactoring were carried out by OpenAI Codex guided by prompts derived from the design session and code review findings. The test suite was written alongside the implementation and used as a spec to validate correctness.
